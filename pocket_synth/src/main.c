@@ -4,7 +4,7 @@
 
 void app_main() 
 {
-    while(true)
+    for (;;)
     {
         ESP_LOGI("GENERAL", "This is a test");
         vTaskDelay(pdMS_TO_TICKS(1000));
