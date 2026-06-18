@@ -1,0 +1,12 @@
+# Match the 2 MB flash chip used by the current Cardputer Adv PlatformIO setup.
+CONFIG_ESPTOOLPY_FLASHSIZE_2MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="2MB"
+
+# The smoke app does not use TLS. Disabling the bundle keeps this PlatformIO
+# ESP-IDF setup close to the known-good pocket_synth project.
+# CONFIG_MBEDTLS_CERTIFICATE_BUNDLE is not set
+
+# The Cardputer ADV keyboard uses the legacy I2C driver in this ESP-IDF 6
+# PlatformIO setup because the new master driver did not detect the shared
+# G8/G9 peripheral bus on tested hardware.
+CONFIG_I2C_SUPPRESS_DEPRECATE_WARN=y

@@ -5,3 +5,10 @@ CONFIG_ESPTOOLPY_FLASHSIZE="2MB"
 # The app does not use TLS yet, and the generated certificate bundle target
 # fails on this PlatformIO/ESP-IDF setup.
 # CONFIG_MBEDTLS_CERTIFICATE_BUNDLE is not set
+
+# Cardputer ADV uses GPIO43 for I2S LRCK, so the default ESP32-S3 UART console
+# pins would collide with audio. Keep logs and serial commands on native USB.
+# CONFIG_ESP_CONSOLE_UART_DEFAULT is not set
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+# CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG is not set

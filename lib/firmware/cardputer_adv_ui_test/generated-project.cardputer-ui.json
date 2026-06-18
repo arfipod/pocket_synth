@@ -1,0 +1,2353 @@
+{
+  "version": 3,
+  "meta": {
+    "name": "Cardputer UI - pocketsynth Single Voice Compact 8 Poly Fn Wave Icons",
+    "createdAt": "2026-06-18T16:35:16.623Z",
+    "updatedAt": "2026-06-18T19:35:47.160Z"
+  },
+  "device": {
+    "id": "cardputer-adv-landscape",
+    "name": "M5Stack Cardputer-Adv landscape",
+    "width": 240,
+    "height": 135,
+    "colorDepth": "RGB565 / ST7789V2",
+    "notes": "Official Cardputer-Adv display resolution, practical firmware orientation."
+  },
+  "grid": {
+    "enabled": true,
+    "size": 5,
+    "snap": true
+  },
+  "screens": [
+    {
+      "id": "screen-main",
+      "name": "pocketsynth main single voice compact 8 poly",
+      "slug": "pocketsynth-main-single-voice-compact-8-poly",
+      "permanent": false,
+      "elements": [
+        {
+          "id": "text-title",
+          "type": "text",
+          "name": "App name",
+          "x": 6,
+          "y": 5,
+          "w": 52,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "pocketsynth",
+            "fontSize": 2,
+            "align": "left",
+            "color": "#c7d7ef",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-polyphony",
+          "type": "text",
+          "name": "Polyphony status",
+          "x": 81,
+          "y": 5,
+          "w": 34,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "0/8",
+            "fontSize": 3,
+            "align": "left",
+            "color": "#9fb2cf",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-chord-label",
+          "type": "text",
+          "name": "Chord label",
+          "x": 112,
+          "y": 5,
+          "w": 30,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "CHORD",
+            "fontSize": 3,
+            "align": "left",
+            "color": "#8fa0bb",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-current-chord",
+          "type": "text",
+          "name": "Detected chord display",
+          "x": 146,
+          "y": 5,
+          "w": 66,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "--",
+            "fontSize": 3,
+            "align": "left",
+            "color": "#9bffb7",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "progress-battery",
+          "type": "progress",
+          "name": "Battery level",
+          "x": 216,
+          "y": 6,
+          "w": 19,
+          "h": 7,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "value": 62,
+            "min": 0,
+            "max": 100,
+            "fill": "#76bb40",
+            "stroke": "#34445d",
+            "radius": 3,
+            "orientation": "horizontal"
+          }
+        },
+        {
+          "id": "text-volume-label",
+          "type": "text",
+          "name": "Volume label",
+          "x": 215,
+          "y": 120,
+          "w": 18,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "VOL",
+            "fontSize": 3,
+            "align": "left",
+            "color": "#8fa0bb",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "progress-main-volume",
+          "type": "progress",
+          "name": "Main voice volume",
+          "x": 220,
+          "y": 85,
+          "w": 10,
+          "h": 34,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "value": 70,
+            "min": 0,
+            "max": 100,
+            "fill": "#7cc7ff",
+            "stroke": "#34445d",
+            "radius": 3,
+            "orientation": "vertical"
+          }
+        },
+        {
+          "id": "button-wave-sine",
+          "type": "button",
+          "name": "Waveform SIN (Fn+1)",
+          "x": 8,
+          "y": 19,
+          "w": 27,
+          "h": 13,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "F1",
+            "fontSize": 2,
+            "align": "center",
+            "fill": "#193322",
+            "stroke": "#9bffb7",
+            "color": "#d7ffe1",
+            "radius": 2,
+            "fontId": "",
+            "action": "setWaveform",
+            "key": "Fn+1",
+            "waveform": "sine",
+            "active": true,
+            "activeFill": "#193322",
+            "inactiveFill": "#101823",
+            "physicalKey": "1",
+            "requiresFn": true,
+            "icon": "sine",
+            "iconElementId": "icon-wave-sine",
+            "label": "SIN"
+          }
+        },
+        {
+          "id": "button-wave-square",
+          "type": "button",
+          "name": "Waveform SQR (Fn+2)",
+          "x": 38,
+          "y": 19,
+          "w": 27,
+          "h": 13,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "F2",
+            "fontSize": 2,
+            "align": "center",
+            "fill": "#101823",
+            "stroke": "#34445d",
+            "color": "#b8c8df",
+            "radius": 2,
+            "fontId": "",
+            "action": "setWaveform",
+            "key": "Fn+2",
+            "waveform": "square",
+            "active": false,
+            "activeFill": "#193322",
+            "inactiveFill": "#101823",
+            "physicalKey": "2",
+            "requiresFn": true,
+            "icon": "square",
+            "iconElementId": "icon-wave-square",
+            "label": "SQR"
+          }
+        },
+        {
+          "id": "button-wave-rectangular",
+          "type": "button",
+          "name": "Waveform REC (Fn+3)",
+          "x": 68,
+          "y": 19,
+          "w": 27,
+          "h": 13,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "F3",
+            "fontSize": 2,
+            "align": "center",
+            "fill": "#101823",
+            "stroke": "#34445d",
+            "color": "#b8c8df",
+            "radius": 2,
+            "fontId": "",
+            "action": "setWaveform",
+            "key": "Fn+3",
+            "waveform": "rectangular",
+            "active": false,
+            "activeFill": "#193322",
+            "inactiveFill": "#101823",
+            "physicalKey": "3",
+            "requiresFn": true,
+            "icon": "rectangular",
+            "iconElementId": "icon-wave-rectangular",
+            "label": "REC"
+          }
+        },
+        {
+          "id": "button-wave-sawtooth",
+          "type": "button",
+          "name": "Waveform SAW (Fn+4)",
+          "x": 98,
+          "y": 19,
+          "w": 27,
+          "h": 13,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "F4",
+            "fontSize": 2,
+            "align": "center",
+            "fill": "#101823",
+            "stroke": "#34445d",
+            "color": "#b8c8df",
+            "radius": 2,
+            "fontId": "",
+            "action": "setWaveform",
+            "key": "Fn+4",
+            "waveform": "sawtooth",
+            "active": false,
+            "activeFill": "#193322",
+            "inactiveFill": "#101823",
+            "physicalKey": "4",
+            "requiresFn": true,
+            "icon": "sawtooth",
+            "iconElementId": "icon-wave-sawtooth",
+            "label": "SAW"
+          }
+        },
+        {
+          "id": "icon-wave-sine",
+          "type": "sparkline",
+          "name": "Sine waveform icon",
+          "x": 20,
+          "y": 22,
+          "w": 12,
+          "h": 7,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "mode": "waveIcon",
+            "points": [
+              0,
+              50,
+              15,
+              25,
+              30,
+              10,
+              50,
+              50,
+              70,
+              90,
+              85,
+              75,
+              100,
+              50
+            ],
+            "fill": "#00000000",
+            "stroke": "#d7ffe1",
+            "axis": "#00000000",
+            "thickness": 1,
+            "showAxes": false,
+            "purpose": "Small waveform selector icon"
+          }
+        },
+        {
+          "id": "icon-wave-square",
+          "type": "sparkline",
+          "name": "Square waveform icon",
+          "x": 50,
+          "y": 22,
+          "w": 12,
+          "h": 7,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "mode": "waveIcon",
+            "points": [
+              0,
+              75,
+              35,
+              75,
+              36,
+              25,
+              70,
+              25,
+              71,
+              75,
+              100,
+              75
+            ],
+            "fill": "#00000000",
+            "stroke": "#d7ffe1",
+            "axis": "#00000000",
+            "thickness": 1,
+            "showAxes": false,
+            "purpose": "Small waveform selector icon"
+          }
+        },
+        {
+          "id": "icon-wave-rectangular",
+          "type": "sparkline",
+          "name": "Rectangular pulse waveform icon",
+          "x": 80,
+          "y": 22,
+          "w": 12,
+          "h": 7,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "mode": "waveIcon",
+            "points": [
+              0,
+              75,
+              18,
+              75,
+              19,
+              25,
+              42,
+              25,
+              43,
+              75,
+              100,
+              75
+            ],
+            "fill": "#00000000",
+            "stroke": "#d7ffe1",
+            "axis": "#00000000",
+            "thickness": 1,
+            "showAxes": false,
+            "purpose": "Small waveform selector icon"
+          }
+        },
+        {
+          "id": "icon-wave-sawtooth",
+          "type": "sparkline",
+          "name": "Sawtooth waveform icon",
+          "x": 110,
+          "y": 22,
+          "w": 12,
+          "h": 7,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "mode": "waveIcon",
+            "points": [
+              0,
+              80,
+              85,
+              20,
+              86,
+              80,
+              100,
+              70
+            ],
+            "fill": "#00000000",
+            "stroke": "#d7ffe1",
+            "axis": "#00000000",
+            "thickness": 1,
+            "showAxes": false,
+            "purpose": "Small waveform selector icon"
+          }
+        },
+        {
+          "id": "sparkline-wave-preview",
+          "type": "sparkline",
+          "name": "Selected waveform preview",
+          "x": 10,
+          "y": 41,
+          "w": 87,
+          "h": 37,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "mode": "wave",
+            "points": [
+              0,
+              50,
+              8,
+              74,
+              16,
+              92,
+              24,
+              96,
+              32,
+              78,
+              40,
+              52,
+              48,
+              25,
+              56,
+              7,
+              64,
+              4,
+              72,
+              21,
+              80,
+              48,
+              88,
+              75,
+              96,
+              93,
+              100,
+              50
+            ],
+            "fill": "#0b1018",
+            "stroke": "#9bffb7",
+            "axis": "#526179",
+            "thickness": 1,
+            "showAxes": true
+          }
+        },
+        {
+          "id": "sparkline-output-preview",
+          "type": "sparkline",
+          "name": "Polyphonic output preview",
+          "x": 115,
+          "y": 40,
+          "w": 85,
+          "h": 39,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "mode": "wave",
+            "points": [
+              0,
+              50,
+              6,
+              78,
+              12,
+              35,
+              18,
+              87,
+              24,
+              22,
+              30,
+              69,
+              36,
+              50,
+              42,
+              91,
+              48,
+              30,
+              54,
+              63,
+              60,
+              40,
+              66,
+              82,
+              72,
+              44,
+              78,
+              18,
+              84,
+              72,
+              90,
+              50,
+              96,
+              88,
+              100,
+              50
+            ],
+            "fill": "#0b1018",
+            "stroke": "#7cc7ff",
+            "axis": "#526179",
+            "thickness": 1,
+            "showAxes": true
+          }
+        },
+        {
+          "id": "text-wave-preview-label",
+          "type": "text",
+          "name": "Selected waveform preview label",
+          "x": 10,
+          "y": 53,
+          "w": 28,
+          "h": 6,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "WAVE",
+            "fontSize": 2,
+            "align": "left",
+            "color": "#8fa0bb",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-output-preview-label",
+          "type": "text",
+          "name": "Output preview label",
+          "x": 115,
+          "y": 51,
+          "w": 34,
+          "h": 6,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "OUT",
+            "fontSize": 2,
+            "align": "left",
+            "color": "#8fa0bb",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "button-piano-white-z",
+          "type": "button",
+          "name": "Piano key C4 (z)",
+          "x": 45,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "C4",
+            "key": "z",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-x",
+          "type": "button",
+          "name": "Piano key D4 (x)",
+          "x": 55,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "D4",
+            "key": "x",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-c",
+          "type": "button",
+          "name": "Piano key E4 (c)",
+          "x": 65,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "E4",
+            "key": "c",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-v",
+          "type": "button",
+          "name": "Piano key F4 (v)",
+          "x": 75,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "F4",
+            "key": "v",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-b",
+          "type": "button",
+          "name": "Piano key G4 (b)",
+          "x": 85,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "G4",
+            "key": "b",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-n",
+          "type": "button",
+          "name": "Piano key A4 (n)",
+          "x": 95,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "A4",
+            "key": "n",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-m",
+          "type": "button",
+          "name": "Piano key B4 (m)",
+          "x": 105,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "B4",
+            "key": "m",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-q",
+          "type": "button",
+          "name": "Piano key C5 (q)",
+          "x": 115,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "C5",
+            "key": "q",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-w",
+          "type": "button",
+          "name": "Piano key D5 (w)",
+          "x": 125,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "D5",
+            "key": "w",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-e",
+          "type": "button",
+          "name": "Piano key E5 (e)",
+          "x": 135,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "E5",
+            "key": "e",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-r",
+          "type": "button",
+          "name": "Piano key F5 (r)",
+          "x": 145,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "F5",
+            "key": "r",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-t",
+          "type": "button",
+          "name": "Piano key G5 (t)",
+          "x": 155,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "G5",
+            "key": "t",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-y",
+          "type": "button",
+          "name": "Piano key A5 (y)",
+          "x": 165,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "A5",
+            "key": "y",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-u",
+          "type": "button",
+          "name": "Piano key B5 (u)",
+          "x": 175,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "B5",
+            "key": "u",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-white-i",
+          "type": "button",
+          "name": "Piano key C6 (i)",
+          "x": 185,
+          "y": 84,
+          "w": 10,
+          "h": 35,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "color": "#000000",
+            "radius": 2,
+            "fontId": "",
+            "note": "C6",
+            "key": "i",
+            "role": "pianoKey",
+            "pressedFill": "#d8ecff",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-s",
+          "type": "button",
+          "name": "Piano key C#4/Db4 (s)",
+          "x": 50,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "C#4/Db4",
+            "key": "s",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-d",
+          "type": "button",
+          "name": "Piano key D#4/Eb4 (d)",
+          "x": 60,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "D#4/Eb4",
+            "key": "d",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-g",
+          "type": "button",
+          "name": "Piano key F#4/Gb4 (g)",
+          "x": 80,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "F#4/Gb4",
+            "key": "g",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-h",
+          "type": "button",
+          "name": "Piano key G#4/Ab4 (h)",
+          "x": 90,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "G#4/Ab4",
+            "key": "h",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-j",
+          "type": "button",
+          "name": "Piano key A#4/Bb4 (j)",
+          "x": 100,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "A#4/Bb4",
+            "key": "j",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-2",
+          "type": "button",
+          "name": "Piano key C#5/Db5 (2)",
+          "x": 120,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "C#5/Db5",
+            "key": "2",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-3",
+          "type": "button",
+          "name": "Piano key D#5/Eb5 (3)",
+          "x": 130,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "D#5/Eb5",
+            "key": "3",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-5",
+          "type": "button",
+          "name": "Piano key F#5/Gb5 (5)",
+          "x": 150,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "F#5/Gb5",
+            "key": "5",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-6",
+          "type": "button",
+          "name": "Piano key G#5/Ab5 (6)",
+          "x": 160,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "G#5/Ab5",
+            "key": "6",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "button-piano-black-7",
+          "type": "button",
+          "name": "Piano key A#5/Bb5 (7)",
+          "x": 170,
+          "y": 84,
+          "w": 10,
+          "h": 21,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "",
+            "fontSize": 3,
+            "align": "center",
+            "fill": "#000000",
+            "stroke": "#5c5c5c",
+            "color": "#f8fbff",
+            "radius": 2,
+            "fontId": "",
+            "note": "A#5/Bb5",
+            "key": "7",
+            "role": "pianoKey",
+            "pressedFill": "#25415f",
+            "pressedStroke": "#7cc7ff",
+            "maxPolyphony": 8
+          }
+        },
+        {
+          "id": "text-label-white-z",
+          "type": "text",
+          "name": "Label C4 (z)",
+          "x": 45,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "z",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-x",
+          "type": "text",
+          "name": "Label D4 (x)",
+          "x": 55,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "x",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-c",
+          "type": "text",
+          "name": "Label E4 (c)",
+          "x": 65,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "c",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-v",
+          "type": "text",
+          "name": "Label F4 (v)",
+          "x": 75,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "v",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-b",
+          "type": "text",
+          "name": "Label G4 (b)",
+          "x": 85,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "b",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-n",
+          "type": "text",
+          "name": "Label A4 (n)",
+          "x": 95,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "n",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-m",
+          "type": "text",
+          "name": "Label B4 (m)",
+          "x": 105,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "m",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-q",
+          "type": "text",
+          "name": "Label C5 (q)",
+          "x": 115,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "q",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-w",
+          "type": "text",
+          "name": "Label D5 (w)",
+          "x": 125,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "w",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-e",
+          "type": "text",
+          "name": "Label E5 (e)",
+          "x": 135,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "e",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-r",
+          "type": "text",
+          "name": "Label F5 (r)",
+          "x": 145,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "r",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-t",
+          "type": "text",
+          "name": "Label G5 (t)",
+          "x": 155,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "t",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-y",
+          "type": "text",
+          "name": "Label A5 (y)",
+          "x": 165,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "y",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-u",
+          "type": "text",
+          "name": "Label B5 (u)",
+          "x": 175,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "u",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-white-i",
+          "type": "text",
+          "name": "Label C6 (i)",
+          "x": 185,
+          "y": 106,
+          "w": 10,
+          "h": 10,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "i",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#000000",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-s",
+          "type": "text",
+          "name": "Label C#4/Db4 (s)",
+          "x": 50,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "s",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-d",
+          "type": "text",
+          "name": "Label D#4/Eb4 (d)",
+          "x": 60,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "d",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-g",
+          "type": "text",
+          "name": "Label F#4/Gb4 (g)",
+          "x": 80,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "g",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-h",
+          "type": "text",
+          "name": "Label G#4/Ab4 (h)",
+          "x": 90,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "h",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-j",
+          "type": "text",
+          "name": "Label A#4/Bb4 (j)",
+          "x": 100,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "j",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-2",
+          "type": "text",
+          "name": "Label C#5/Db5 (2)",
+          "x": 120,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "2",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-3",
+          "type": "text",
+          "name": "Label D#5/Eb5 (3)",
+          "x": 130,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "3",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-5",
+          "type": "text",
+          "name": "Label F#5/Gb5 (5)",
+          "x": 150,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "5",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-6",
+          "type": "text",
+          "name": "Label G#5/Ab5 (6)",
+          "x": 160,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "6",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-label-black-7",
+          "type": "text",
+          "name": "Label A#5/Bb5 (7)",
+          "x": 170,
+          "y": 89,
+          "w": 10,
+          "h": 8,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "7",
+            "fontSize": 3,
+            "align": "center",
+            "color": "#f8fbff",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-note-marker-c4",
+          "type": "text",
+          "name": "Octave marker C4",
+          "x": 44,
+          "y": 121,
+          "w": 16,
+          "h": 7,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "C4",
+            "fontSize": 2,
+            "align": "center",
+            "color": "#9fb2cf",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-note-marker-c5",
+          "type": "text",
+          "name": "Octave marker C5",
+          "x": 114,
+          "y": 121,
+          "w": 16,
+          "h": 7,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "C5",
+            "fontSize": 2,
+            "align": "center",
+            "color": "#9fb2cf",
+            "fontId": ""
+          }
+        },
+        {
+          "id": "text-note-marker-c6",
+          "type": "text",
+          "name": "Octave marker C6",
+          "x": 184,
+          "y": 121,
+          "w": 16,
+          "h": 7,
+          "visible": true,
+          "locked": false,
+          "events": {
+            "press": "",
+            "longPress": "",
+            "keyEnter": "",
+            "keyBack": "",
+            "softKeyLeft": "",
+            "softKeyRight": ""
+          },
+          "props": {
+            "text": "C6",
+            "fontSize": 2,
+            "align": "center",
+            "color": "#9fb2cf",
+            "fontId": ""
+          }
+        }
+      ]
+    }
+  ],
+  "assets": {
+    "fonts": []
+  },
+  "styles": [
+    {
+      "id": "style-piano-key-pressed-white",
+      "name": "Pressed white piano key",
+      "props": {
+        "fill": "#d8ecff",
+        "stroke": "#7cc7ff"
+      }
+    },
+    {
+      "id": "style-piano-key-pressed-black",
+      "name": "Pressed black piano key",
+      "props": {
+        "fill": "#25415f",
+        "stroke": "#7cc7ff"
+      }
+    },
+    {
+      "id": "style-active-waveform",
+      "name": "Active waveform selector",
+      "props": {
+        "fill": "#193322",
+        "stroke": "#9bffb7"
+      }
+    }
+  ],
+  "flow": {
+    "startScreenId": "screen-main",
+    "transitions": []
+  }
+}
