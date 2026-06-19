@@ -1,15 +1,15 @@
 # cardputer_adv_ui_test
 
-Banco de pruebas de UI para M5Stack Cardputer ADV.
+UI test bench for the M5Stack Cardputer ADV.
 
-Este proyecto sirve para validar:
+This project validates:
 
-- Inicializacion de display ST7789V2.
-- Framebuffer RGB565.
-- Widgets basicos.
-- Teclado fisico y modificadores.
-- Runtime de UI generado.
-- Dumps de framebuffer por serial.
+- ST7789V2 display initialization.
+- RGB565 framebuffer.
+- Basic widgets.
+- Physical keyboard and modifiers.
+- Generated UI runtime.
+- Framebuffer dumps over serial.
 
 ## Build
 
@@ -17,39 +17,39 @@ Este proyecto sirve para validar:
 pio run -d lib/firmware/cardputer_adv_ui_test -e cardputer_adv
 ```
 
-## Fuente UI
+## UI Source
 
-El proyecto incluye un JSON de UI en:
+The project includes a UI JSON file at:
 
 ```text
 generated-project.cardputer-ui.json
 ```
 
-La referencia mas reciente compartida para `pocketsynth` esta archivada en:
+The latest shared reference for `pocketsynth` is archived at:
 
 ```text
 docs/references/cardputer-ui-pocketsynth-main.cardputer-ui.json
 ```
 
-El JSON local de este proyecto puede tener pequenas diferencias de coordenadas
-respecto a esa referencia archivada. Tratar `docs/references/` como fuente de
-diseno mas reciente y este proyecto como runtime/banco de pruebas.
+The local JSON in this project may have small coordinate differences compared
+with that archived reference. Treat `docs/references/` as the latest design
+source and this project as the runtime/test bench.
 
-Si se regenera UI, mantener sincronizados el JSON fuente y los archivos de
-`src/generated/`.
+If the UI is regenerated, keep the source JSON and `src/generated/` files in
+sync.
 
-## Comandos seriales
+## Serial Commands
 
-| Comando | Accion |
+| Command | Action |
 | --- | --- |
-| `fb` o `dump` | Dump de framebuffer en orden nativo del panel. |
-| `fb logical` | Dump de framebuffer en orden logico. |
-| `widgets` o `gallery` | Muestra la galeria de widgets. |
-| `ui` o `generated` | Vuelve a la UI generada. |
+| `fb` or `dump` | Dump framebuffer in native panel order. |
+| `fb logical` | Dump framebuffer in logical order. |
+| `widgets` or `gallery` | Show the widget gallery. |
+| `ui` or `generated` | Return to the generated UI. |
 
-## Integracion futura
+## Future Integration
 
-Para el firmware principal de `pocketsynth`, este proyecto debe tratarse como
-base de runtime y laboratorio de UI. La integracion final debe conectar los
-widgets al estado real del sintetizador: notas activas, waveform, volumen,
-polifonia y acorde detectado.
+For the main `pocketsynth` firmware, this project should be treated as the UI
+runtime base and laboratory. Final integration should connect widgets to real
+synthesizer state: active notes, waveform, volume, polyphony, and detected
+chord.

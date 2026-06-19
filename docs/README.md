@@ -1,24 +1,24 @@
-# Documentacion de pocketsynth
+# pocketsynth Documentation
 
-Esta carpeta convierte las notas iniciales del proyecto en una base de trabajo
-para implementacion, pruebas y futuros agentes.
+This folder turns the project's initial notes into a working base for
+implementation, testing, and future code agents.
 
-## Lectura recomendada
+## Recommended Reading
 
-1. `iteration-1.md`: que entra y que queda fuera de la primera iteracion.
-2. `architecture.md`: como deben comunicarse audio, input, control y UI.
-3. `ui.md`: pantalla compacta, controles, mapeo de teclas y fuente JSON.
-4. `implementation-plan.md`: fases 1A-1G con criterios de aceptacion.
-5. `decisions.md`: constantes y decisiones iniciales.
+1. `iteration-1.md`: what is in and out of the first iteration.
+2. `architecture.md`: how audio, input, control, and UI should communicate.
+3. `ui.md`: compact screen, controls, keyboard mapping, and JSON source.
+4. `implementation-plan.md`: phases 1A-1G with acceptance criteria.
+5. `decisions.md`: constants and initial decisions.
 
-## Referencias originales
+## Original References
 
-- `references/pocket_synth_iteration_1_design_v1_2.pdf`: PDF compartido como
-  documento de diseno de la iteracion 1.
-- `references/cardputer-ui-pocketsynth-main.cardputer-ui.json`: JSON de UI mas
-  reciente compartido como referencia de pantalla.
+- `references/pocket_synth_iteration_1_design_v1_2.pdf`: shared iteration 1
+  design document.
+- `references/cardputer-ui-pocketsynth-main.cardputer-ui.json`: latest shared UI
+  JSON reference for the main screen.
 
-## Principio rector
+## Guiding Principle
 
-Primero audio estable. Despues interaccion. Despues UI. Despues musicalidad.
-Despues modulacion.
+Stable audio first. Then interaction. Then UI. Then musical analysis. Then
+modulation.

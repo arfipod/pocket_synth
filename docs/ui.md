@@ -1,87 +1,87 @@
-# UI y controles
+# UI And Controls
 
-## Fuente de referencia
+## Reference Source
 
-La UI compartida esta guardada en:
+The shared UI is stored in:
 
 ```text
 docs/references/cardputer-ui-pocketsynth-main.cardputer-ui.json
 ```
 
-El banco de pruebas/runtime de UI existente esta en:
+The existing UI runtime test bench is in:
 
 ```text
 lib/firmware/cardputer_adv_ui_test
 ```
 
-Ese proyecto contiene display, teclado, widgets, input mapper, UI generada y
-comandos de debug por serial. Es la base practica para integrar o validar la
-interfaz de `pocketsynth`.
+That project contains display, keyboard, widgets, input mapper, generated UI,
+and serial debug commands. It is the practical base for validating or
+integrating the `pocketsynth` interface.
 
-Nota de sincronizacion: el JSON archivado en `docs/references/` es la version
-mas reciente compartida. El JSON dentro de `lib/firmware/cardputer_adv_ui_test`
-puede tener pequenas diferencias de coordenadas porque pertenece al banco de
-pruebas generado anteriormente.
+Synchronization note: the JSON archived in `docs/references/` is the latest
+shared version. The JSON inside `lib/firmware/cardputer_adv_ui_test` may have
+small coordinate differences because it belongs to an earlier generated test
+bench.
 
-## Dispositivo
+## Device
 
 - M5Stack Cardputer ADV.
-- Orientacion landscape.
-- Resolucion logica: 240 x 135 px.
+- Landscape orientation.
+- Logical resolution: 240 x 135 px.
 - Color: RGB565 / ST7789V2.
 
-## Pantalla principal
+## Main Screen
 
-Una sola pantalla: `screen-main`.
+Single screen: `screen-main`.
 
-Resumen de elementos del JSON:
+JSON element summary:
 
-| Tipo | Cantidad | Uso |
+| Type | Count | Purpose |
 | --- | ---: | --- |
-| `text` | 35 | Titulos, labels, notas, acorde y marcas de octava. |
-| `progress` | 2 | Bateria y volumen maestro. |
-| `button` | 29 | Selectores de onda y teclas de piano. |
-| `sparkline` | 6 | Iconos de onda y previews. |
+| `text` | 35 | Titles, labels, notes, chord, and octave markers. |
+| `progress` | 2 | Battery and master volume. |
+| `button` | 29 | Waveform selectors and piano keys. |
+| `sparkline` | 6 | Waveform icons and previews. |
 
-Elementos principales:
+Main elements:
 
 - `text-title`: `pocketsynth`.
 - `text-polyphony`: `0/8`.
 - `text-chord-label`: `CHORD`.
 - `text-current-chord`: `--`.
-- `progress-battery`: bateria.
-- `progress-main-volume`: volumen vertical.
-- `sparkline-wave-preview`: preview de onda seleccionada.
-- `sparkline-output-preview`: preview de salida polifonica.
+- `progress-battery`: battery.
+- `progress-main-volume`: vertical volume.
+- `sparkline-wave-preview`: selected waveform preview.
+- `sparkline-output-preview`: polyphonic output preview.
 
-El documento de diseno original menciona `VOICE: V1` como posible texto de
-estado. El JSON mas reciente no contiene ese elemento; para la iteracion 1 se
-puede omitir mientras la pantalla conserve claro que solo hay una voz.
+The original design document mentions `VOICE: V1` as possible status text. The
+latest JSON does not contain that element; for iteration 1 it can be omitted as
+long as the screen stays clear that only one voice exists.
 
-## Selectores de forma de onda
+## Waveform Selectors
 
-| Elemento | Tecla | Forma | Icono |
+| Element | Key | Waveform | Icon |
 | --- | --- | --- | --- |
-| `button-wave-sine` | `Fn+1` | Senoidal | `icon-wave-sine` |
-| `button-wave-square` | `Fn+2` | Cuadrada | `icon-wave-square` |
-| `button-wave-rectangular` | `Fn+3` | Rectangular | `icon-wave-rectangular` |
-| `button-wave-sawtooth` | `Fn+4` | Diente de sierra | `icon-wave-sawtooth` |
+| `button-wave-sine` | `Fn+1` | Sine | `icon-wave-sine` |
+| `button-wave-square` | `Fn+2` | Square | `icon-wave-square` |
+| `button-wave-rectangular` | `Fn+3` | Rectangular pulse | `icon-wave-rectangular` |
+| `button-wave-sawtooth` | `Fn+4` | Sawtooth | `icon-wave-sawtooth` |
 
-Estado activo:
+Active state:
 
 - Fill: `#193322`.
 - Stroke: `#9bffb7`.
 
-Estado inactivo:
+Inactive state:
 
 - Fill: `#101823`.
 - Stroke: `#34445d`.
 
 ## Piano
 
-Teclas blancas:
+White keys:
 
-| Tecla fisica | Nota | Elemento |
+| Physical key | Note | Element |
 | --- | --- | --- |
 | z | C4 | `button-piano-white-z` |
 | x | D4 | `button-piano-white-x` |
@@ -99,9 +99,9 @@ Teclas blancas:
 | u | B5 | `button-piano-white-u` |
 | i | C6 | `button-piano-white-i` |
 
-Teclas negras:
+Black keys:
 
-| Tecla fisica | Nota | Elemento |
+| Physical key | Note | Element |
 | --- | --- | --- |
 | s | C#4 / Db4 | `button-piano-black-s` |
 | d | D#4 / Eb4 | `button-piano-black-d` |
@@ -114,67 +114,66 @@ Teclas negras:
 | 6 | G#5 / Ab5 | `button-piano-black-6` |
 | 7 | A#5 / Bb5 | `button-piano-black-7` |
 
-Feedback de tecla pulsada:
+Pressed key feedback:
 
-| Tipo | Fill | Stroke |
+| Type | Fill | Stroke |
 | --- | --- | --- |
-| Blanca | `#d8ecff` | `#7cc7ff` |
-| Negra | `#25415f` | `#7cc7ff` |
+| White | `#d8ecff` | `#7cc7ff` |
+| Black | `#25415f` | `#7cc7ff` |
 
-## Colores base
+## Base Colors
 
-| Uso | Color |
+| Use | Color |
 | --- | --- |
-| Fondo tecnico oscuro | `#0b1018` |
-| Texto primario suave | `#c7d7ef` |
-| Texto secundario | `#8fa0bb` |
-| Estado/acento verde | `#9bffb7` |
-| Estado/acento azul | `#7cc7ff` |
-| Stroke tenue | `#34445d` |
-| Bateria verde | `#76bb40` |
+| Dark technical background | `#0b1018` |
+| Soft primary text | `#c7d7ef` |
+| Secondary text | `#8fa0bb` |
+| Green status/accent | `#9bffb7` |
+| Blue status/accent | `#7cc7ff` |
+| Subtle stroke | `#34445d` |
+| Battery green | `#76bb40` |
 
-## Banco de pruebas de UI
+## UI Test Bench
 
-Comandos de build:
+Build command:
 
 ```powershell
 pio run -d lib/firmware/cardputer_adv_ui_test -e cardputer_adv
 ```
 
-Comandos seriales implementados en el runtime:
+Serial commands implemented by the runtime:
 
-| Comando | Accion |
+| Command | Action |
 | --- | --- |
-| `fb` o `dump` | Dump de framebuffer en orden nativo de panel. |
-| `fb logical` | Dump de framebuffer en orden logico. |
-| `widgets` o `gallery` | Cambia a galeria de widgets. |
-| `ui` o `generated` | Vuelve a la UI generada. |
+| `fb` or `dump` | Dump framebuffer in native panel order. |
+| `fb logical` | Dump framebuffer in logical order. |
+| `widgets` or `gallery` | Switch to the widget gallery. |
+| `ui` or `generated` | Return to the generated UI. |
 
-La cabecera del runtime dibuja diagnostico de teclado en la parte superior.
-Cuando se integre en `pocketsynth`, esa capa debe convertirse en estado musical
-o quedar solo para modo debug.
+The runtime header draws keyboard diagnostics at the top. When integrated into
+`pocketsynth`, that layer should become musical state or remain debug-only.
 
-## Generacion de UI
+## UI Generation
 
-El proyecto de smoke test documenta este comando, aunque el generador no vive
-en este repo:
+The smoke-test project documents this command, although the generator does not
+live in this repo:
 
 ```powershell
 npm run firmware:prepare -- path/to/project.cardputer-ui.json
 ```
 
-Si se regenera UI, mantener sincronizados:
+If the UI is regenerated, keep these files synchronized:
 
-- JSON fuente.
+- JSON source.
 - `src/generated/cardputer_ui.*`.
 - `src/generated/cardputer_ui_assets.*`.
 - `src/generated/cardputer_ui_fonts.*`.
 
-## Restricciones de diseno
+## Design Constraints
 
-- Una sola pantalla.
-- Texto pequeno y legible.
-- Nada de controles para funciones no implementadas.
-- Iconos de onda compactos, tecnicos y reconocibles.
-- La UI debe reflejar estado real, no solo eventos momentaneos.
-- Redibujar a 15-20 FPS maximo y solo cuando cambie algo importante.
+- One screen.
+- Small, legible text.
+- No controls for unimplemented features.
+- Compact, technical, recognizable waveform icons.
+- The UI must reflect real state, not transient events only.
+- Redraw at 15-20 FPS maximum and only when important state changes.

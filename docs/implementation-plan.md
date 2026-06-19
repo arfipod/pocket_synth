@@ -1,140 +1,141 @@
-# Plan de implementacion
+# Implementation Plan
 
-La primera iteracion se divide en fases pequenas y medibles. Cada fase debe
-conservar la estabilidad del audio antes de avanzar.
+The first iteration is split into small, measurable phases. Each phase must
+preserve audio stability before the next one begins.
 
-## Fase 1A: audio minimo
+## Phase 1A: Minimal Audio
 
-Objetivo:
+Goal:
 
-- Inicializar salida de audio.
-- Generar una nota fija.
-- Confirmar que el buffer no se corta.
+- Initialize audio output.
+- Generate one fixed note.
+- Confirm the buffer does not underrun.
 
-Criterio de aceptacion:
+Acceptance criteria:
 
-- Suena una nota continua sin cortes audibles durante al menos 60 segundos.
+- One continuous note plays without audible dropouts for at least 60 seconds.
 
-Notas de implementacion:
+Implementation notes:
 
-- Usar `SAMPLE_RATE = 22050`.
-- Usar `AUDIO_BUFFER_FRAMES = 128`.
-- Sin logs en el camino de audio.
-- Convertir `float` interno a `int16` antes de I2S.
+- Use `SAMPLE_RATE = 22050`.
+- Use `AUDIO_BUFFER_FRAMES = 128`.
+- No logs in the audio path.
+- Convert internal `float` to `int16` before I2S.
 
-## Fase 1B: teclado monofonico
+## Phase 1B: Monophonic Keyboard
 
-Objetivo:
+Goal:
 
-- Leer teclado fisico.
-- Mapear una tecla a una nota.
-- Generar note on/off.
+- Read the physical keyboard.
+- Map one key to one note.
+- Generate note on/off.
 
-Criterio de aceptacion:
+Acceptance criteria:
 
-- Al pulsar `z` suena C4.
-- Al soltar `z` deja de sonar.
-- El audio no se bloquea.
+- Pressing `z` plays C4.
+- Releasing `z` stops the note.
+- Audio does not block.
 
-## Fase 1C: polifonia de 8 notas
+## Phase 1C: 8-Note Polyphony
 
-Objetivo:
+Goal:
 
-- Permitir hasta 8 notas simultaneas.
-- Mantener fase independiente por nota.
-- Normalizar la suma.
+- Allow up to 8 simultaneous notes.
+- Keep independent phase per note.
+- Normalize the sum.
 
-Criterio de aceptacion:
+Acceptance criteria:
 
-- Se pueden tocar acordes de 3, 4 y 5 notas sin clipping evidente.
-- El contador de polifonia muestra `n/8`.
-- Si se excede el maximo, el sistema no se rompe.
+- 3, 4, and 5 note chords can be played without obvious clipping.
+- The polyphony counter shows `n/8`.
+- Exceeding the maximum does not break the system.
 
-Politica inicial al exceder 8 notas:
+Initial policy when more than 8 notes are requested:
 
-- Ignorar nuevas notas hasta liberar una activa.
+- Ignore new notes until one active note is released.
 
-## Fase 1D: seleccion de forma de onda
+## Phase 1D: Waveform Selection
 
-Objetivo:
+Goal:
 
-- `Fn + 1`: senoidal.
-- `Fn + 2`: cuadrada.
-- `Fn + 3`: rectangular.
-- `Fn + 4`: diente de sierra.
-- Mostrar iconos pequenos de forma de onda.
+- `Fn + 1`: sine.
+- `Fn + 2`: square.
+- `Fn + 3`: rectangular pulse.
+- `Fn + 4`: sawtooth.
+- Show small waveform icons.
 
-Criterio de aceptacion:
+Acceptance criteria:
 
-- Se puede cambiar de onda mientras suena una nota o acorde.
-- La UI refleja la onda seleccionada mediante estado activo e icono.
+- The waveform can be changed while a note or chord is sounding.
+- The UI reflects the selected waveform through active state and icon.
 
-## Fase 1E: UI compacta
+## Phase 1E: Compact UI
 
-Objetivo:
+Goal:
 
-- Mostrar estado minimo.
-- Pintar teclas activas.
-- Mostrar waveform y output preview.
-- Mostrar volumen y polifonia.
+- Show minimal state.
+- Draw active keys.
+- Show waveform and output previews.
+- Show volume and polyphony.
 
-Criterio de aceptacion:
+Acceptance criteria:
 
-- La UI se actualiza sin provocar cortes de audio.
-- La tasa de refresco es baja pero estable.
+- The UI updates without causing audio dropouts.
+- Refresh rate is low but stable.
 
-Recomendacion:
+Recommendation:
 
-- 15-20 FPS maximo.
-- Redibujar solo si hay cambios.
+- 15-20 FPS maximum.
+- Redraw only when state changes.
 
-## Fase 1F: deteccion de acordes
+## Phase 1F: Chord Detection
 
-Objetivo:
+Goal:
 
-- Identificar acordes basicos a partir de notas activas.
-- Mostrar el nombre del acorde en pantalla.
+- Identify basic chords from active notes.
+- Show the chord name on screen.
 
-Criterio de aceptacion:
+Acceptance criteria:
 
-- Triadas mayores y menores se detectan correctamente.
-- Septimas basicas se detectan correctamente.
-- Las inversiones muestran bajo cuando procede.
+- Major and minor triads are detected correctly.
+- Basic seventh chords are detected correctly.
+- Inversions show the bass note when needed.
 
-Patrones iniciales:
+Initial patterns:
 
-- Mayor.
-- Menor.
-- Disminuido.
-- Aumentado.
+- Major.
+- Minor.
+- Diminished.
+- Augmented.
 - Sus2.
 - Sus4.
 - 7.
 - Maj7.
 - m7.
 
-## Fase 1G: estabilizacion y profiling
+## Phase 1G: Stabilization And Profiling
 
-Objetivo:
+Goal:
 
-- Medir carga de CPU.
-- Comprobar underruns.
-- Comprobar latencia.
-- Ajustar buffer.
-- Ajustar sample rate si procede.
+- Measure CPU load.
+- Check underruns.
+- Check latency.
+- Adjust buffer size.
+- Adjust sample rate if appropriate.
 
-Criterio de aceptacion:
+Acceptance criteria:
 
-- El sistema permite tocar varios minutos sin cortes, bloqueos ni degradacion.
+- The system can be played for several minutes without dropouts, lockups, or
+  degradation.
 
-## Checklist final
+## Final Checklist
 
-- `pocketsynth` arranca y muestra UI compacta.
-- `z`, `x`, `c` producen C4, D4, E4.
-- Acordes de 3-5 notas suenan sin clipping evidente.
-- `Fn + 1..4` cambia forma de onda.
-- Volumen maestro sube y baja.
-- Contador de polifonia refleja notas activas.
-- Acorde detectado aparece en pantalla.
-- No hay logs ni asignaciones dinamicas en render de audio.
-- Uso prolongado estable durante varios minutos.
+- `pocketsynth` boots and shows the compact UI.
+- `z`, `x`, and `c` produce C4, D4, and E4.
+- 3-5 note chords sound without obvious clipping.
+- `Fn + 1..4` changes waveform.
+- Master volume increases and decreases.
+- The polyphony counter reflects active notes.
+- Detected chord appears on screen.
+- No logs or dynamic allocations happen during audio render.
+- Long play sessions remain stable for several minutes.

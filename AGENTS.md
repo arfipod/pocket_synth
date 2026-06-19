@@ -1,67 +1,68 @@
-# Guia para agentes de codigo
+# Code Agent Guide
 
-Este repo implementa `pocketsynth`, un sintetizador real-time para M5Stack
-Cardputer ADV. Antes de cambiar codigo, lee `docs/iteration-1.md`,
-`docs/architecture.md` y `docs/ui.md`.
+This repo implements `pocketsynth`, a real-time synthesizer for the M5Stack
+Cardputer ADV. Before changing code, read `docs/iteration-1.md`,
+`docs/architecture.md`, and `docs/ui.md`.
 
-## Prioridades del proyecto
+## Project Priorities
 
-1. Audio estable.
-2. Interaccion de teclado fiable.
-3. UI compacta que refleje estado real.
-4. Deteccion musical basica.
-5. Funciones avanzadas solo despues de cerrar la iteracion 1.
+1. Stable audio.
+2. Reliable keyboard interaction.
+3. Compact UI that reflects real state.
+4. Basic musical detection.
+5. Advanced features only after iteration 1 is complete.
 
-No introduzcas ADSR, LFO, filtros, presets, secuenciador, arpegiador ni menus
-profundos durante la iteracion 1 salvo que el usuario lo pida explicitamente.
+Do not introduce ADSR, LFO, filters, presets, sequencers, arpeggiators, or deep
+menus during iteration 1 unless the user explicitly asks for them.
 
-## Reglas del camino de audio
+## Audio Path Rules
 
-La tarea o funcion que renderiza audio no debe hacer:
+The task or function that renders audio must not do any of the following:
 
 - Logs (`printf`, `ESP_LOG*`).
-- `malloc`, `new`, `std::vector` dinamico o `String`.
-- Lectura de SD.
-- Redibujado de pantalla.
-- I2C lento.
-- Esperas de mutex largas.
-- Trabajo de UI o analisis musical pesado.
+- `malloc`, `new`, dynamic `std::vector`, or `String`.
+- SD reads.
+- Display redraws.
+- Slow I2C.
+- Long mutex waits.
+- UI work or heavy musical analysis.
 
-El audio debe poder renderizar buffers de forma predecible y escribirlos a I2S.
+Audio must be able to render buffers predictably and write them to I2S.
 
-## Arquitectura esperada
+## Expected Architecture
 
-- `AudioTask`: prioridad alta, genera buffers y escribe I2S.
-- `InputTask`: prioridad media, escanea teclado y emite eventos.
-- `SynthControlTask`: prioridad media, aplica note on/off, waveform y volumen.
-- `UiTask`: prioridad baja, redibuja solo cuando hay cambios.
-- `ChordTask`: opcional; puede estar integrado en control al principio.
+- `AudioTask`: high priority, generates buffers and writes I2S.
+- `InputTask`: medium priority, scans the keyboard and emits events.
+- `SynthControlTask`: medium priority, applies note on/off, waveform, and
+  volume changes.
+- `UiTask`: low priority, redraws only when state changes.
+- `ChordTask`: optional; it can be integrated into control at first.
 
-Si hay que compartir estado con audio, usa copias pequenas o secciones criticas
-cortas. No bloquees el render de audio esperando a la UI.
+When sharing state with audio, use small copies or short critical sections. Do
+not block audio rendering on UI work.
 
-## Layout del repo
+## Repo Layout
 
-- `src/` e `include/`: firmware principal del sintetizador.
-- `lib/firmware/cardputer_adv_ui_test`: banco de pruebas de display, teclado,
-  widgets y runtime de UI generado.
-- `docs/references/cardputer-ui-pocketsynth-main.cardputer-ui.json`: fuente UI
-  de referencia mas reciente.
-- `docs/references/pocket_synth_iteration_1_design_v1_2.pdf`: documento
-  original de diseno.
+- `src/` and `include/`: main synthesizer firmware.
+- `lib/firmware/cardputer_adv_ui_test`: display, keyboard, widget, and generated
+  UI runtime test bench.
+- `docs/references/cardputer-ui-pocketsynth-main.cardputer-ui.json`: latest
+  reference UI source.
+- `docs/references/pocket_synth_iteration_1_design_v1_2.pdf`: original design
+  document.
 
-## Validacion
+## Validation
 
-Para cambios de firmware principal:
+For main firmware changes:
 
 ```powershell
 pio run -e cardputer_adv
 ```
 
-Para cambios en el banco de pruebas de UI:
+For UI test bench changes:
 
 ```powershell
 pio run -d lib/firmware/cardputer_adv_ui_test -e cardputer_adv
 ```
 
-Documenta en la respuesta final si no se pudo compilar o probar en hardware.
+Document in the final response if the build or hardware test could not be run.

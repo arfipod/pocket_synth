@@ -1,85 +1,85 @@
-# Decisiones tecnicas iniciales
+# Initial Technical Decisions
 
-| Decision | Valor |
+| Decision | Value |
 | --- | --- |
 | Hardware | M5Stack Cardputer ADV |
-| Resolucion UI | 240 x 135 px landscape |
-| Voces/canales | 1 |
-| Polifonia | 8 notas maximo |
-| ADSR | No en iteracion 1 |
-| LFO | No en iteracion 1 |
-| Filtro | No en iteracion 1 |
-| Sample rate inicial | 22050 Hz |
-| Buffer inicial | 128 frames |
-| Formato interno | `float` |
-| Salida final | `int16` |
-| UI FPS | 15-20 FPS maximo |
-| Nombre visible | `pocketsynth` |
-| Selectores de onda | `Fn + 1..4` con iconos compactos |
-| Normalizacion | `sqrt(activeNoteCount)` mas headroom |
-| Ganancia por nota inicial | `PER_NOTE_GAIN = 0.45f` |
-| Volumen maestro inicial | `0.70f` |
-| Onda rectangular | Duty fijo inicial de 25% |
-| Exceso de polifonia | Ignorar nuevas notas |
+| UI resolution | 240 x 135 px landscape |
+| Voices/channels | 1 |
+| Polyphony | 8 notes maximum |
+| ADSR | Not in iteration 1 |
+| LFO | Not in iteration 1 |
+| Filter | Not in iteration 1 |
+| Initial sample rate | 22050 Hz |
+| Initial buffer | 128 frames |
+| Internal format | `float` |
+| Final output | `int16` |
+| UI FPS | 15-20 FPS maximum |
+| Visible name | `pocketsynth` |
+| Waveform selectors | `Fn + 1..4` with compact icons |
+| Normalization | `sqrt(activeNoteCount)` plus headroom |
+| Initial per-note gain | `PER_NOTE_GAIN = 0.45f` |
+| Initial master volume | `0.70f` |
+| Rectangular pulse | Initial fixed 25% duty |
+| Excess polyphony | Ignore new notes |
 
-## Riesgos principales
+## Main Risks
 
-### Cortes de audio
+### Audio Dropouts
 
-Causas probables:
+Likely causes:
 
-- `AudioTask` bloqueado.
-- Buffer demasiado pequeno.
-- UI demasiado pesada.
-- Logs dentro del audio path.
+- `AudioTask` blocked.
+- Buffer too small.
+- UI too heavy.
+- Logs inside the audio path.
 
-Mitigaciones:
+Mitigations:
 
-- Prioridad alta para audio.
-- Sin logs ni memoria dinamica en render.
-- UI a baja frecuencia.
-- Buffer ajustable.
+- High audio priority.
+- No logs or dynamic allocation during render.
+- Low-frequency UI.
+- Adjustable buffer size.
 
 ### Clipping
 
-Causas probables:
+Likely causes:
 
-- Suma de muchas notas.
-- Ganancia por nota demasiado alta.
-- Volumen maestro alto.
+- Many notes summed together.
+- Per-note gain too high.
+- High master volume.
 
-Mitigaciones:
+Mitigations:
 
 - `PER_NOTE_GAIN`.
-- Division por `sqrt(activeNoteCount)`.
-- Clamp final.
-- Indicador futuro de clipping si hace falta.
+- Division by `sqrt(activeNoteCount)`.
+- Final clamp.
+- Future clipping indicator if needed.
 
-### Latencia de teclado
+### Keyboard Latency
 
-Causas probables:
+Likely causes:
 
-- `InputTask` lento.
-- Debounce excesivo.
-- Bloqueos en lectura.
+- Slow `InputTask`.
+- Excessive debounce.
+- Blocking reads.
 
-Mitigaciones:
+Mitigations:
 
-- Escaneo cada 5-10 ms.
-- Eventos solo en cambios.
-- Separar input de UI.
+- Scan every 5-10 ms.
+- Emit events only on changes.
+- Keep input separate from UI.
 
-### UI saturada
+### Crowded UI
 
-Causas probables:
+Likely causes:
 
-- Demasiada informacion en 240 x 135 px.
-- Textos largos.
-- Graficas demasiado grandes.
+- Too much information in 240 x 135 px.
+- Long labels.
+- Graphs that are too large.
 
-Mitigaciones:
+Mitigations:
 
-- UI compacta.
-- Abreviaturas.
-- Mostrar solo lo implementado.
-- Evitar conceptos futuros en pantalla.
+- Compact UI.
+- Abbreviations.
+- Show only implemented features.
+- Avoid future concepts on screen.

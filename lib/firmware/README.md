@@ -1,12 +1,11 @@
-# Firmware auxiliar
+# Auxiliary Firmware
 
-Esta carpeta contiene proyectos o bancos de pruebas de firmware que ayudan a
-desarrollar `pocketsynth`, pero que no son necesariamente el firmware principal
-de la raiz del repo.
+This folder contains firmware projects or test benches that help develop
+`pocketsynth`, but are not necessarily the main firmware at the repo root.
 
-## Proyectos
+## Projects
 
-- `cardputer_adv_ui_test`: runtime de prueba para display, teclado, widgets y
-  UI generada del Cardputer ADV.
+- `cardputer_adv_ui_test`: test runtime for the Cardputer ADV display, keyboard,
+  widgets, and generated UI.
 
-El firmware principal del sintetizador vive en `src/` e `include/`.
+The main synthesizer firmware lives in `src/` and `include/`.

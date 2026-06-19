@@ -1,77 +1,74 @@
-# Iteracion 1: una voz polifonica
+# Iteration 1: One Polyphonic Voice
 
-## Objetivo
+## Goal
 
-Construir un sintetizador real en tiempo real sobre M5Stack Cardputer ADV. Las
-notas se generan matematicamente en el dispositivo y se envian al sistema de
-audio.
+Build a real-time synthesizer on the M5Stack Cardputer ADV. Notes are generated
+mathematically on the device and sent to the audio system.
 
-La primera iteracion no intenta ser un sintetizador completo. Debe validar la
-cadena base:
+The first iteration is not a complete synthesizer. It validates the base chain:
 
 ```text
-teclado fisico
--> eventos note on/off
--> motor de sintesis
--> osciladores matematicos
--> mezcla de hasta 8 notas
--> volumen maestro
--> buffer de audio
--> salida I2S / speaker
+physical keyboard
+-> note on/off events
+-> synthesis engine
+-> mathematical oscillators
+-> mix up to 8 notes
+-> master volume
+-> audio buffer
+-> I2S / speaker output
 ```
 
-## Alcance incluido
+## Included Scope
 
-- Una sola voz/instrumento.
-- Polifonia maxima de 8 notas simultaneas.
-- Generacion matematica de formas de onda.
-- Formas de onda: senoidal, cuadrada, rectangular con duty fijo y diente de
-  sierra.
-- Lectura del teclado del Cardputer.
-- Mapeo de teclas fisicas a notas musicales.
-- Cambio de forma de onda con `Fn + 1`, `Fn + 2`, `Fn + 3`, `Fn + 4`.
-- Volumen maestro.
-- Feedback visual de teclas pulsadas.
-- Indicador de polifonia actual.
-- Deteccion basica de acordes.
-- UI compacta en una sola pantalla.
-- Nombre visible de aplicacion: `pocketsynth`, pequeno en la zona superior.
-- Iconos pequenos de forma de onda junto a los selectores.
+- One voice/instrument.
+- Maximum polyphony of 8 simultaneous notes.
+- Mathematical waveform generation.
+- Waveforms: sine, square, fixed-duty rectangular pulse, and sawtooth.
+- Cardputer keyboard reading.
+- Physical key to musical note mapping.
+- Waveform changes with `Fn + 1`, `Fn + 2`, `Fn + 3`, and `Fn + 4`.
+- Master volume.
+- Visual feedback for pressed keys.
+- Current polyphony indicator.
+- Basic chord detection.
+- Compact single-screen UI.
+- Visible app name: small `pocketsynth` text in the upper area.
+- Small waveform icons next to selectors.
 
-## Fuera de alcance
+## Out of Scope
 
 - ADSR.
 - LFO.
-- Filtros.
-- Multiples canales o capas sonoras.
+- Filters.
+- Multiple channels or sound layers.
 - Presets.
-- Efectos.
-- Secuenciador.
-- Grabacion.
-- Arpegiador.
-- Menus profundos.
-- Edicion avanzada de parametros.
+- Effects.
+- Sequencer.
+- Recording.
+- Arpeggiator.
+- Deep menus.
+- Advanced parameter editing.
 
-Estas exclusiones protegen la estabilidad real-time del motor.
+These exclusions protect the real-time stability of the engine.
 
-## Concepto sonoro
+## Sound Concept
 
-En esta iteracion "voz" significa un unico instrumento o capa sonora. Dentro de
-esa voz puede haber hasta 8 notas simultaneas:
+In this iteration, "voice" means one instrument or sound layer. That voice can
+hold up to 8 simultaneous notes:
 
 ```text
 Voice 1
-|- nota activa 1
-|- nota activa 2
-|- nota activa 3
+|- active note 1
+|- active note 2
+|- active note 3
 |- ...
-`- nota activa 8
+`- active note 8
 ```
 
-Cada nota activa mantiene su propia fase. No debe existir una unica variable
-global de tiempo para todas las notas.
+Each active note keeps its own phase. There must not be a single global time
+variable shared by all notes.
 
-## Estado por nota
+## Per-Note State
 
 ```cpp
 struct ActiveNote {
@@ -82,14 +79,14 @@ struct ActiveNote {
 };
 ```
 
-La fase usa rango normalizado:
+Phase uses a normalized range:
 
 ```text
 phase = 0.0 ... 1.0
 phaseIncrement = frequency / sampleRate
 ```
 
-Avance por muestra:
+Advance per sample:
 
 ```cpp
 phase += phaseIncrement;
@@ -98,40 +95,40 @@ if (phase >= 1.0f) {
 }
 ```
 
-Ejemplo: A4 a 440 Hz con `sampleRate = 22050` produce
+Example: A4 at 440 Hz with `sampleRate = 22050` gives
 `phaseIncrement = 440 / 22050 = 0.01995`.
 
-## Formas de onda
+## Waveforms
 
-Senoidal:
+Sine:
 
 ```cpp
 sample = sinf(phase * 2.0f * PI);
 ```
 
-Cuadrada:
+Square:
 
 ```cpp
 sample = phase < 0.5f ? 1.0f : -1.0f;
 ```
 
-Rectangular con duty fijo inicial de 25%:
+Fixed-duty rectangular pulse, initially 25%:
 
 ```cpp
 sample = phase < pulseWidth ? 1.0f : -1.0f;
 ```
 
-Diente de sierra:
+Sawtooth:
 
 ```cpp
 sample = 2.0f * phase - 1.0f;
 ```
 
-## Mezcla y normalizacion
+## Mixing And Normalization
 
-Rango interno recomendado: `-1.0 ... +1.0`.
+Recommended internal range: `-1.0 ... +1.0`.
 
-Estrategia inicial:
+Initial strategy:
 
 ```text
 mixed = sum(activeNotes)
@@ -141,7 +138,7 @@ mixed *= masterVolume
 mixed = clamp(mixed, -1.0f, 1.0f)
 ```
 
-Constantes iniciales:
+Initial constants:
 
 ```cpp
 constexpr int MAX_POLYPHONY = 8;
@@ -149,7 +146,7 @@ constexpr float PER_NOTE_GAIN = 0.45f;
 float masterVolume = 0.70f;
 ```
 
-Render conceptual:
+Conceptual render:
 
 ```cpp
 float renderSample(SynthState& state) {
@@ -181,9 +178,9 @@ float renderSample(SynthState& state) {
 }
 ```
 
-## Frecuencia de muestreo y buffer
+## Sample Rate And Buffer
 
-Valores de arranque:
+Starting values:
 
 ```cpp
 constexpr int SAMPLE_RATE = 22050;
@@ -191,19 +188,19 @@ constexpr int AUDIO_BUFFER_FRAMES = 128;
 constexpr int MAX_POLYPHONY = 8;
 ```
 
-Motivos:
+Reasons:
 
-- 22050 Hz reduce carga de CPU.
-- 128 frames ofrece latencia razonable y margen de estabilidad.
-- 8 notas cubren acordes complejos en el teclado del Cardputer.
+- 22050 Hz reduces CPU load.
+- 128 frames gives reasonable latency with stability margin.
+- 8 notes cover complex Cardputer keyboard chords.
 
-Cuando el sistema sea estable se puede evaluar `SAMPLE_RATE = 32000`.
+After the system is stable, `SAMPLE_RATE = 32000` can be evaluated.
 
-## Controles
+## Controls
 
-Teclas blancas:
+White keys:
 
-| Tecla | Nota |
+| Key | Note |
 | --- | --- |
 | z | C4 |
 | x | D4 |
@@ -221,9 +218,9 @@ Teclas blancas:
 | u | B5 |
 | i | C6 |
 
-Teclas negras:
+Black keys:
 
-| Tecla | Nota |
+| Key | Note |
 | --- | --- |
 | s | C#4 / Db4 |
 | d | D#4 / Eb4 |
@@ -236,55 +233,55 @@ Teclas negras:
 | 6 | G#5 / Ab5 |
 | 7 | A#5 / Bb5 |
 
-Formas de onda:
+Waveforms:
 
-| Combinacion | Forma |
+| Combination | Waveform |
 | --- | --- |
-| Fn + 1 | Senoidal |
-| Fn + 2 | Cuadrada |
-| Fn + 3 | Rectangular |
-| Fn + 4 | Diente de sierra |
+| Fn + 1 | Sine |
+| Fn + 2 | Square |
+| Fn + 3 | Rectangular pulse |
+| Fn + 4 | Sawtooth |
 
-Volumen inicial:
+Initial volume controls:
 
-| Combinacion | Accion |
+| Combination | Action |
 | --- | --- |
-| Fn + Up | Subir volumen |
-| Fn + Down | Bajar volumen |
+| Fn + Up | Increase volume |
+| Fn + Down | Decrease volume |
 
-La implementacion debe usar el mapeo real que exponga la libreria de teclado.
+The implementation must use the real mapping exposed by the keyboard driver.
 
-## UI esperada
+## Expected UI
 
-La pantalla solo debe mostrar lo que existe en esta fase:
+The screen should only show what exists in this phase:
 
 - `pocketsynth`.
 - `0/8`.
 - `CHORD --`.
 - `VOL`.
-- Selectores `Fn1`, `Fn2`, `Fn3`, `Fn4` con iconos de onda.
-- Preview de onda seleccionada.
-- Preview de salida.
+- `F1`, `F2`, `F3`, and `F4` selectors with waveform icons.
+- Selected waveform preview.
+- Output preview.
 - Piano.
 
-No debe mostrar mixer, multiples voices, ADSR, LFO, filtro ni presets.
+It must not show mixer, multiple voices, ADSR, LFO, filters, or presets.
 
-Feedback visual de tecla activa:
+Active key visual feedback:
 
-| Tipo | Fill | Stroke |
+| Type | Fill | Stroke |
 | --- | --- | --- |
-| Blanca | `#d8ecff` | `#7cc7ff` |
-| Negra | `#25415f` | `#7cc7ff` |
+| White | `#d8ecff` | `#7cc7ff` |
+| Black | `#25415f` | `#7cc7ff` |
 
-Este feedback debe depender del estado real de notas activas.
+This feedback must depend on the real active note state.
 
-## Deteccion de acordes
+## Chord Detection
 
-La deteccion de acordes no debe bloquear audio.
+Chord detection must not block audio.
 
-Entrada: conjunto de notas activas.
+Input: active note set.
 
-Salida: nombre de acorde, por ejemplo:
+Output: chord name, for example:
 
 - `C`
 - `Cm`
@@ -292,38 +289,39 @@ Salida: nombre de acorde, por ejemplo:
 - `CMaj7#5/C`
 - `Gsus4/D`
 
-Primera version recomendada:
+Recommended first version:
 
-1. Convertir notas activas a pitch classes.
-2. Calcular nota grave.
-3. Probar patrones: mayor, menor, disminuido, aumentado, sus2, sus4, 7,
-   Maj7 y m7.
-4. Mostrar inversion si la nota grave no coincide con la raiz.
+1. Convert active notes to pitch classes.
+2. Calculate the bass note.
+3. Try patterns: major, minor, diminished, augmented, sus2, sus4, 7, Maj7, and
+   m7.
+4. Show inversion if the bass note does not match the root.
 
-Formato de inversion: `CMaj7/E`.
+Inversion format: `CMaj7/E`.
 
-## Criterio global de exito
+## Global Success Criteria
 
-La iteracion 1 termina cuando el Cardputer ADV actua como sintetizador
-real-time basico: una sola voz polifonica de hasta 8 notas, seleccion de forma
-de onda, volumen maestro, feedback visual, deteccion de acorde y audio estable.
+Iteration 1 ends when the Cardputer ADV acts as a basic real-time synthesizer:
+one polyphonic voice with up to 8 notes, waveform selection, master volume,
+visual feedback, chord detection, and stable audio.
 
-Prueba final:
+Final test:
 
-1. Encender `pocketsynth`.
-2. Pulsar `z`, `x`, `c` y escuchar notas individuales.
-3. Tocar acordes de 3 a 5 notas.
-4. Cambiar entre `Fn + 1`, `Fn + 2`, `Fn + 3`, `Fn + 4` mientras suena.
-5. Ver que el selector e icono de onda cambian.
-6. Subir y bajar volumen.
-7. Ver contador de polifonia.
-8. Ver acorde detectado.
-9. Mantener uso durante varios minutos sin cortes.
+1. Power on `pocketsynth`.
+2. Press `z`, `x`, and `c` and hear individual notes.
+3. Play 3 to 5 note chords.
+4. Change between `Fn + 1`, `Fn + 2`, `Fn + 3`, and `Fn + 4` while sound is
+   playing.
+5. Verify the selector and waveform icon change.
+6. Increase and decrease volume.
+7. Verify the polyphony counter.
+8. Verify chord detection.
+9. Keep playing for several minutes without dropouts.
 
-## Roadmap posterior
+## Later Roadmap
 
-- Iteracion 2: multiples canales/voices, waveform y volumen por canal, mixer.
-- Iteracion 3: ADSR por nota.
-- Iteracion 4: LFO para vibrato, tremolo, PWM y modulacion.
-- Iteracion 5: filtro low-pass, high-pass, band-pass y resonancia basica.
-- Iteracion 6: presets, guardado/carga de patches, posible uso de SD.
+- Iteration 2: multiple channels/voices, waveform and volume per channel, mixer.
+- Iteration 3: ADSR per note.
+- Iteration 4: LFO for vibrato, tremolo, PWM, and modulation.
+- Iteration 5: basic low-pass, high-pass, band-pass filters and resonance.
+- Iteration 6: presets, patch save/load, possible SD use.

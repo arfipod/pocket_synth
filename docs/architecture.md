@@ -1,30 +1,31 @@
-# Arquitectura runtime
+# Runtime Architecture
 
-## Regla principal
+## Main Rule
 
-El audio manda. La generacion de audio nunca debe esperar por UI, logs,
-teclado, SD, graficos o locks largos.
+Audio leads. Audio generation must never wait on UI, logs, keyboard, SD,
+graphics, or long locks.
 
-## Tareas FreeRTOS propuestas
+## Proposed FreeRTOS Tasks
 
-| Tarea | Prioridad | Responsabilidad |
+| Task | Priority | Responsibility |
 | --- | --- | --- |
-| `AudioTask` | Alta | Renderizar buffers y escribir a I2S/speaker. |
-| `InputTask` | Media | Escanear teclado y emitir eventos de cambio. |
-| `SynthControlTask` | Media | Aplicar note on/off, waveform, volumen y estado. |
-| `UiTask` | Baja | Redibujar estado visible solo cuando cambie. |
-| `ChordTask` | Baja/media | Recalcular acorde al cambiar notas activas. |
+| `AudioTask` | High | Render buffers and write to I2S/speaker. |
+| `InputTask` | Medium | Scan the keyboard and emit change events. |
+| `SynthControlTask` | Medium | Apply note on/off, waveform, volume, and state changes. |
+| `UiTask` | Low | Redraw visible state only when it changes. |
+| `ChordTask` | Low/medium | Recalculate chords when active notes change. |
 
-`ChordTask` puede integrarse inicialmente en `SynthControlTask`.
+`ChordTask` can initially be integrated into `SynthControlTask`, which is how
+the current firmware is organized.
 
-## Flujo de datos
+## Data Flow
 
 ```text
 Cardputer keyboard
   -> InputTask
   -> SynthEvent queue
   -> SynthControlTask
-  -> SynthState pequeno y copiable
+  -> small copyable SynthAudioState
   -> AudioTask render
   -> I2S / speaker
 
@@ -34,31 +35,32 @@ SynthControlTask
   -> Cardputer display
 ```
 
-## Eventos de entrada
+## Input Events
 
 ```cpp
-enum class EventType {
+enum class SynthEventType {
   NoteOn,
   NoteOff,
   SetWaveform,
-  SetVolume
+  AdjustVolume
 };
 
 struct SynthEvent {
-  EventType type;
-  uint8_t key;
+  SynthEventType type;
   uint8_t noteIndex;
+  uint8_t midi;
+  Waveform waveform;
   float value;
 };
 ```
 
-`InputTask` debe enviar eventos sin bloquear:
+`InputTask` must send events without blocking:
 
 ```cpp
 xQueueSend(synthEventQueue, &event, 0);
 ```
 
-## Estado del sintetizador
+## Synth State
 
 ```cpp
 enum class Waveform {
@@ -70,55 +72,60 @@ enum class Waveform {
 
 struct ActiveNote {
   bool active;
+  uint8_t noteIndex;
+  uint8_t midi;
   float frequency;
   float phase;
   float phaseIncrement;
 };
 
-struct SynthState {
+struct SynthAudioState {
   Waveform waveform;
   float masterVolume;
-  ActiveNote notes[MAX_POLYPHONY];
+  uint8_t activeCount;
   uint32_t pressedMask;
+  ActiveNote notes[MAX_POLYPHONY];
 };
 ```
 
-La iteracion 1 puede empezar con copia de estado pequeno y seccion critica
-corta. Si aparecen glitches, pasar a doble estado:
+Iteration 1 uses a small state copy protected by short critical sections. If
+glitches appear, move to double-buffered state:
 
 ```text
-controlState -> copia atomica/corta -> audioState
+controlState -> short atomic copy -> audioState
 ```
 
-## Reglas del AudioTask
+## AudioTask Rules
 
-Dentro del camino de audio no debe haber:
+The audio path must not contain:
 
-- `printf` o `ESP_LOG*`.
-- `malloc`, `new`, `std::vector` dinamico o `String`.
-- Lectura de SD.
-- Redibujado de pantalla.
-- Espera de mutex largo.
-- Operaciones I2C lentas.
+- `printf` or `ESP_LOG*`.
+- `malloc`, `new`, dynamic `std::vector`, or `String`.
+- SD reads.
+- Display redraws.
+- Long mutex waits.
+- Slow I2C operations.
 
-Estructura esperada:
+Expected structure:
 
 ```cpp
 while (true) {
-  renderAudioBuffer(buffer, AUDIO_BUFFER_FRAMES);
-  i2s_write(...);
+  copyAudioState(&localState);
+  renderAudioBuffer(&localState, buffer, AUDIO_BUFFER_FRAMES);
+  storeRenderedPhases(localState);
+  writeAudioFrames(buffer, AUDIO_BUFFER_FRAMES);
 }
 ```
 
-## Render y salida
+## Render And Output
 
-- Formato interno: `float` normalizado en `[-1.0, 1.0]`.
-- Salida final: `int16`.
-- Sample rate inicial: 22050 Hz.
-- Buffer inicial: 128 frames.
-- Polifonia maxima: 8 notas.
+- Internal format: normalized `float` in `[-1.0, 1.0]`.
+- Final output: `int16`.
+- Initial sample rate: 22050 Hz.
+- Initial buffer: 128 frames.
+- Maximum polyphony: 8 notes.
 
-Conversion conceptual:
+Conceptual conversion:
 
 ```cpp
 int16_t toInt16(float sample) {
@@ -128,28 +135,28 @@ int16_t toInt16(float sample) {
 }
 ```
 
-## Politica de polifonia
+## Polyphony Policy
 
-Para exceder 8 notas en iteracion 1:
+When more than 8 notes are requested in iteration 1:
 
-- Ignorar nuevas notas hasta que se libere alguna activa.
+- Ignore new notes until one active note is released.
 
-Alternativa futura:
+Future alternative:
 
 - Voice stealing.
 
-## UI y estado visual
+## UI And Visual State
 
-La UI nunca debe derivar notas pulsadas solo de eventos momentaneos. Debe leer
-un estado estable generado por control:
+The UI must never derive pressed notes from transient events only. It must read
+stable state generated by control:
 
-- Notas activas.
-- Waveform activa.
-- Volumen maestro.
-- Conteo `n/8`.
-- Nombre de acorde.
+- Active notes.
+- Active waveform.
+- Master volume.
+- `n/8` count.
+- Chord name.
 
-Frecuencia objetivo de UI:
+Target UI frequency:
 
-- 15-20 FPS maximo.
-- Redibujar solo si hay cambios.
+- 15-20 FPS maximum.
+- Redraw only when important state changes.
