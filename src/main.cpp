@@ -10,6 +10,10 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "soc/soc_caps.h"
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#include "hal/i2s_ll.h"
+#include "soc/i2s_struct.h"
+#endif
 
 #include "cardputer_display.h"
 #include "cardputer_keyboard.h"
@@ -29,7 +33,7 @@ static const char* TAG = "pocketsynth";
 
 static constexpr float PI = 3.14159265358979323846f;
 static constexpr float TWO_PI = 2.0f * PI;
-static constexpr float PER_NOTE_GAIN = 0.45f;
+static constexpr float PER_NOTE_GAIN = 0.35f;
 static constexpr float INITIAL_MASTER_VOLUME = 0.70f;
 static constexpr float VOLUME_STEP = 0.05f;
 static constexpr float PULSE_WIDTH = 0.25f;
@@ -130,7 +134,6 @@ static portMUX_TYPE gUiStateMux = portMUX_INITIALIZER_UNLOCKED;
 static SynthAudioState gAudioState;
 static UiState gUiState;
 static i2s_chan_handle_t gI2sTx = nullptr;
-static es8311_handle_t gCodec = nullptr;
 
 static float clamp_float(float value, float lo, float hi) {
   if (value < lo) return lo;
@@ -186,6 +189,11 @@ static float oscillator_sample(float phase, Waveform waveform) {
 static int16_t float_to_i16(float sample) {
   sample = clamp_float(sample, -1.0f, 1.0f);
   return static_cast<int16_t>(sample * 32767.0f);
+}
+
+static int32_t pack_i2s_mono_pair(int16_t first, int16_t second) {
+  return static_cast<int32_t>((static_cast<uint32_t>(static_cast<uint16_t>(first)) << 16) |
+                              static_cast<uint16_t>(second));
 }
 
 static void copy_audio_state(SynthAudioState* out) {
@@ -377,11 +385,12 @@ static void all_notes_off(SynthAudioState* state) {
   for (auto& note : state->notes) note = {};
 }
 
-static void render_audio_buffer(int16_t* buffer, size_t frames) {
+static void render_audio_buffer(int32_t* buffer, size_t frames) {
   SynthAudioState local = {};
   copy_audio_state(&local);
 
   const float normalize = local.activeCount <= MAX_POLYPHONY ? INV_SQRT[local.activeCount] : INV_SQRT[MAX_POLYPHONY];
+  int16_t firstInPair = 0;
   for (size_t frame = 0; frame < frames; ++frame) {
     float mixed = 0.0f;
     if (local.activeCount > 0) {
@@ -396,9 +405,14 @@ static void render_audio_buffer(int16_t* buffer, size_t frames) {
     }
 
     const int16_t pcm = float_to_i16(mixed);
-    buffer[frame * 2] = pcm;
-    buffer[frame * 2 + 1] = pcm;
+    if ((frame & 1U) == 0) {
+      firstInPair = pcm;
+    } else {
+      buffer[frame >> 1] = pack_i2s_mono_pair(firstInPair, pcm);
+    }
   }
+
+  if ((frames & 1U) != 0) buffer[frames >> 1] = pack_i2s_mono_pair(firstInPair, firstInPair);
 
   store_rendered_phases(local);
 }
@@ -421,13 +435,113 @@ static esp_err_t ensure_i2c_bus() {
   return err;
 }
 
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+static void calc_i2s_clock_div(uint32_t* divA, uint32_t* divB, uint32_t* divN, uint32_t baseClock,
+                               uint32_t targetFrequency) {
+  if (baseClock <= (targetFrequency << 1)) {
+    *divN = 2;
+    *divA = 1;
+    *divB = 0;
+    return;
+  }
+
+  uint32_t saveN = 255;
+  uint32_t saveA = 63;
+  uint32_t saveB = 62;
+
+  if (targetFrequency > 0) {
+    float div = static_cast<float>(baseClock) / static_cast<float>(targetFrequency);
+    const uint32_t n = static_cast<uint32_t>(div);
+    if (n < 256) {
+      div -= static_cast<float>(n);
+
+      float checkBase = static_cast<float>(baseClock);
+      while (static_cast<int32_t>(targetFrequency) >= 0) {
+        targetFrequency <<= 1;
+        checkBase *= 2.0f;
+      }
+      const float checkTarget = static_cast<float>(targetFrequency);
+
+      uint32_t saveDiff = UINT32_MAX;
+      if (n < 255) {
+        saveA = 1;
+        saveB = 0;
+        saveN = n + 1;
+        saveDiff = static_cast<uint32_t>(fabsf(checkTarget - (checkBase / static_cast<float>(saveN))));
+      }
+
+      for (uint32_t a = 1; a < 64; ++a) {
+        const uint32_t b = static_cast<uint32_t>(roundf(static_cast<float>(a) * div));
+        if (a <= b) continue;
+
+        const uint32_t diff =
+            static_cast<uint32_t>(fabsf(checkTarget - ((checkBase * static_cast<float>(a)) /
+                                                       static_cast<float>((n * a) + b))));
+        if (saveDiff <= diff) continue;
+
+        saveDiff = diff;
+        saveA = a;
+        saveB = b;
+        saveN = n;
+        if (diff == 0) break;
+      }
+    }
+  }
+
+  *divN = saveN;
+  *divA = saveA;
+  *divB = saveB;
+}
+
+static void apply_cardputer_i2s_clock() {
+  static constexpr uint32_t PLL_D2_CLK = 120 * 1000 * 1000;
+  static constexpr uint32_t SAMPLE_BITS = 16;
+  static constexpr uint32_t BCLK_DIV = 32 / SAMPLE_BITS;
+
+  uint32_t divA = 0;
+  uint32_t divB = 0;
+  uint32_t divN = 0;
+  calc_i2s_clock_div(&divA, &divB, &divN, PLL_D2_CLK, BCLK_DIV * SAMPLE_BITS * SAMPLE_RATE);
+
+  i2s_dev_t* dev = &I2S1;
+  i2s_ll_tx_clk_set_src(dev, I2S_CLK_SRC_PLL_240M);
+  dev->tx_clkm_conf.clk_en = 1;
+  dev->tx_clkm_conf.tx_clk_active = 1;
+
+  dev->tx_conf.tx_mono = 1;
+  dev->tx_conf.tx_chan_equal = 1;
+  dev->tx_conf1.tx_bck_div_num = BCLK_DIV - 1;
+
+  const uint32_t yn1 = divB > (divA >> 1);
+  if (yn1) divB = divA - divB;
+
+  uint32_t divY = 1;
+  uint32_t divX = 0;
+  if (divB != 0) {
+    divX = (divA / divB) - 1;
+    divY = divA % divB;
+    if (divY == 0) {
+      divY = 1;
+      divB = 511;
+    }
+  }
+
+  i2s_ll_tx_set_raw_clk_div(dev, divN, divX, divY, divB, yn1);
+  dev->tx_conf.tx_update = 1;
+  dev->tx_conf.tx_update = 0;
+}
+#else
+static void apply_cardputer_i2s_clock() {}
+#endif
+
 static esp_err_t init_i2s() {
   i2s_chan_config_t channelConfig = {};
-  channelConfig.id = I2S_NUM_0;
+  channelConfig.id = I2S_NUM_1;
   channelConfig.role = I2S_ROLE_MASTER;
   channelConfig.dma_desc_num = 6;
   channelConfig.dma_frame_num = AUDIO_BUFFER_FRAMES;
-  channelConfig.auto_clear_after_cb = false;
+  channelConfig.auto_clear = true;
+  channelConfig.auto_clear_after_cb = true;
   channelConfig.auto_clear_before_cb = false;
   channelConfig.allow_pd = false;
   channelConfig.intr_priority = 0;
@@ -437,16 +551,16 @@ static esp_err_t init_i2s() {
 
   i2s_std_config_t stdConfig = {};
   stdConfig.clk_cfg.sample_rate_hz = SAMPLE_RATE;
-  stdConfig.clk_cfg.clk_src = I2S_CLK_SRC_DEFAULT;
+  stdConfig.clk_cfg.clk_src = I2S_CLK_SRC_PLL_240M;
 #if SOC_I2S_HW_VERSION_2
   stdConfig.clk_cfg.ext_clk_freq_hz = 0;
 #endif
-  stdConfig.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
+  stdConfig.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_128;
   stdConfig.clk_cfg.bclk_div = 8;
 
   stdConfig.slot_cfg.data_bit_width = I2S_DATA_BIT_WIDTH_16BIT;
-  stdConfig.slot_cfg.slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO;
-  stdConfig.slot_cfg.slot_mode = I2S_SLOT_MODE_STEREO;
+  stdConfig.slot_cfg.slot_bit_width = I2S_SLOT_BIT_WIDTH_16BIT;
+  stdConfig.slot_cfg.slot_mode = I2S_SLOT_MODE_MONO;
   stdConfig.slot_cfg.slot_mask = I2S_STD_SLOT_BOTH;
   stdConfig.slot_cfg.ws_width = I2S_DATA_BIT_WIDTH_16BIT;
   stdConfig.slot_cfg.ws_pol = false;
@@ -470,6 +584,7 @@ static esp_err_t init_i2s() {
 
   err = i2s_channel_init_std_mode(gI2sTx, &stdConfig);
   if (err != ESP_OK) return err;
+  apply_cardputer_i2s_clock();
   return i2s_channel_enable(gI2sTx);
 }
 
@@ -478,33 +593,33 @@ static bool probe_i2c_device(uint8_t address, uint8_t reg) {
   return i2c_master_write_read_device(I2C_NUM_0, address, &reg, 1, &value, 1, pdMS_TO_TICKS(50)) == ESP_OK;
 }
 
+static esp_err_t write_codec_reg(uint8_t reg, uint8_t value) {
+  const uint8_t data[2] = {reg, value};
+  return i2c_master_write_to_device(I2C_NUM_0, ES8311_ADDRESS_0, data, sizeof(data), pdMS_TO_TICKS(100));
+}
+
 static esp_err_t init_codec() {
-  gCodec = es8311_create(I2C_NUM_0, ES8311_ADDRESS_0);
-  if (gCodec == nullptr) return ESP_ERR_NO_MEM;
-
-  es8311_clock_config_t codecClock = {};
-  codecClock.mclk_inverted = false;
-  codecClock.sclk_inverted = false;
-  codecClock.mclk_from_mclk_pin = false;
-  codecClock.mclk_frequency = 0;
-  codecClock.sample_frequency = SAMPLE_RATE;
-
   for (int attempt = 0; attempt < 12; ++attempt) {
     if (probe_i2c_device(ES8311_ADDRESS_0, ES8311_CHD1_REGFD)) break;
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 
-  esp_err_t lastErr = ESP_FAIL;
-  for (int attempt = 1; attempt <= 5; ++attempt) {
-    lastErr = es8311_init(gCodec, &codecClock, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16);
-    if (lastErr == ESP_OK) {
-      ESP_RETURN_ON_ERROR(es8311_voice_volume_set(gCodec, 85, nullptr), TAG, "ES8311 volume failed");
-      return es8311_voice_mute(gCodec, false);
-    }
-    ESP_LOGW(TAG, "ES8311 init attempt %d failed: %s", attempt, esp_err_to_name(lastErr));
-    vTaskDelay(pdMS_TO_TICKS(80));
+  static constexpr uint8_t CARDPUTER_ADV_DAC_INIT[][2] = {
+      {ES8311_RESET_REG00, 0x80},
+      {ES8311_CLK_MANAGER_REG01, 0xB5},
+      {ES8311_CLK_MANAGER_REG02, 0x18},
+      {ES8311_SYSTEM_REG0D, 0x01},
+      {ES8311_SYSTEM_REG12, 0x00},
+      {ES8311_SYSTEM_REG13, 0x10},
+      {ES8311_DAC_REG32, 0xBF},
+      {ES8311_DAC_REG37, 0x08},
+  };
+
+  for (const auto& regValue : CARDPUTER_ADV_DAC_INIT) {
+    ESP_RETURN_ON_ERROR(write_codec_reg(regValue[0], regValue[1]), TAG, "ES8311 register init failed");
   }
-  return lastErr;
+
+  return ESP_OK;
 }
 
 static void control_task(void*) {
@@ -548,14 +663,17 @@ static void control_task(void*) {
 }
 
 static void audio_task(void*) {
-  static int16_t audioBuffer[AUDIO_BUFFER_FRAMES * 2];
+  static int32_t audioBuffer[(AUDIO_BUFFER_FRAMES + 1) / 2];
 
   for (;;) {
     render_audio_buffer(audioBuffer, AUDIO_BUFFER_FRAMES);
     size_t bytesWritten = 0;
     if (gI2sTx != nullptr) {
-      i2s_channel_write(gI2sTx, audioBuffer, sizeof(audioBuffer), &bytesWritten, portMAX_DELAY);
-      vTaskDelay(1);
+      i2s_channel_write(gI2sTx,
+                        audioBuffer,
+                        AUDIO_BUFFER_FRAMES * sizeof(int16_t),
+                        &bytesWritten,
+                        portMAX_DELAY);
     } else {
       vTaskDelay(pdMS_TO_TICKS(10));
     }
