@@ -28,15 +28,15 @@ Supported or intended in the current development phase:
 - Control Change parsing.
 - Pitch Bend parsing.
 - Note On/Off conversion to `SynthEvent`.
+- Per-note velocity gain.
+- Sustain CC64.
+- Pitch bend scaling.
+- Modulation strip and general CC state caching.
 
 Not yet fully implemented:
 
-- per-note velocity gain;
-- sustain CC64;
-- pitch bend mapping;
-- modulation strip mapping;
-- general CC mapping;
 - all-notes-off recovery;
+- advanced CC mappings (LFOs, Filters);
 - Native Instruments proprietary controls.
 
 ## Required Hardware Setup
@@ -262,19 +262,16 @@ MIDI note should be supported.
 
 ## Velocity Roadmap
 
-Velocity is already present in parsed MIDI messages, but must be wired into the
-synth engine.
+Velocity is already parsed and fully wired into the synth engine.
 
-Required changes:
+Implemented behavior:
 
-- Add `velocity` to `SynthEvent`.
-- Add `velocity` and `velocityGain` to `ActiveNote`.
-- Change `sendMidiNoteEvent()` to accept velocity.
-- Use a default fixed velocity for Cardputer keyboard notes.
-- Multiply each note by `velocityGain` in audio render.
-- Review `PER_NOTE_GAIN` to avoid clipping.
+- Added `velocity` to `SynthEvent`.
+- Added `velocity` and `velocityGain` to `ActiveNote`.
+- Uses a default fixed velocity (127) for Cardputer keyboard notes.
+- Multiplies each oscillator output by `velocityGain` in audio render.
 
-Suggested initial velocity curve:
+Velocity curve used:
 
 ```cpp
 float velocityToGain(uint8_t velocity) {
@@ -291,33 +288,29 @@ Expected result:
 
 ## Sustain Roadmap
 
-Sustain should use MIDI CC64:
+Sustain uses MIDI CC64:
 
 ```text
 CC64 value >= 64 -> sustain on
 CC64 value < 64  -> sustain off
 ```
 
-Required behavior:
+Implemented behavior:
 
-- While sustain is on, NoteOff marks the note as released-but-held.
-- When sustain turns off, notes that are not physically held should stop.
-- Avoid stuck notes.
-- Add all-notes-off recovery if needed.
-
-Do not implement ADSR release in the first sustain task. A held note can stop
-immediately when sustain is released until envelopes exist.
+- While sustain is on, NoteOff marks the note as `keyReleased = true` instead of clearing it.
+- When sustain turns off, notes that have `keyReleased == true` are cleared immediately.
+- There is no ADSR release yet; notes stop instantly upon physical release or pedal lift.
 
 ## Pitch Bend Roadmap
 
-Pitch bend is parsed but not mapped.
+Pitch bend is parsed and integrated.
 
-Future behavior:
+Implemented behavior:
 
-- Store global or per-channel pitch bend state.
-- Apply pitch bend to note frequency or phase increment.
-- Keep pitch bend out of the audio render control path except as a copied state.
-- Avoid expensive recomputation per sample if possible.
+- Stores global `pitchBendMultiplier` in `SynthAudioState`.
+- Applies the multiplier to each note's phase increment in the `audio_render` loop.
+- Modifies pitch by +/- 2 semitones.
+- Re-computed only when `PitchBend` events arrive, keeping the audio loop fast.
 
 ## Modulation / CC Roadmap
 
@@ -386,9 +379,7 @@ Mitigations:
 
 ## Current Known Limitations
 
-- No velocity gain yet.
-- No sustain CC64 yet.
-- No pitch bend mapping yet.
+- No advanced ADSR release/decay yet.
 - No NKS/proprietary Native Instruments behavior.
 - USB MIDI Host is experimental and hardware-dependent.
 - USB Serial/JTAG should not be assumed available while using the same USB-C path

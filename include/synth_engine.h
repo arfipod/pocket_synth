@@ -15,7 +15,7 @@ int16_t floatToI16(float sample);
 
 void initializeSynthState(SynthAudioState* state);
 uint8_t activeSlotCount(const SynthAudioState& state);
-void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi);
+void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi, uint8_t velocity);
 void noteOff(SynthAudioState* state, uint8_t noteIndex, uint8_t midi);
 void applySynthEvent(SynthAudioState* state, const SynthEvent& event);
 

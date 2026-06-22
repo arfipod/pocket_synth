@@ -4,19 +4,21 @@
 
 namespace pocketsynth {
 
-void sendNoteEvent(const KeyNote& note, bool pressed) {
-  SynthEvent event = {};
+void sendNoteEvent(const KeyNote& note, bool pressed, uint8_t velocity) {
+  SynthEvent event;
   event.type = pressed ? SynthEventType::NoteOn : SynthEventType::NoteOff;
   event.noteIndex = note.noteIndex;
   event.midi = note.midi;
+  event.velocity = velocity;
   sendSynthEvent(event);
 }
 
-void sendMidiNoteEvent(uint8_t midi, bool pressed) {
-  SynthEvent event = {};
+void sendMidiNoteEvent(uint8_t midi, bool pressed, uint8_t velocity) {
+  SynthEvent event;
   event.type = pressed ? SynthEventType::NoteOn : SynthEventType::NoteOff;
   event.noteIndex = SYNTH_NO_UI_NOTE_INDEX;
   event.midi = midi;
+  event.velocity = velocity;
   sendSynthEvent(event);
 }
 
@@ -28,9 +30,24 @@ void sendWaveformEvent(Waveform waveform) {
 }
 
 void sendVolumeDelta(float delta) {
-  SynthEvent event = {};
+  SynthEvent event;
   event.type = SynthEventType::AdjustVolume;
   event.value = delta;
+  sendSynthEvent(event);
+}
+
+void sendControlChangeEvent(uint8_t control, uint8_t value) {
+  SynthEvent event;
+  event.type = SynthEventType::ControlChange;
+  event.control = control;
+  event.controlValue = value;
+  sendSynthEvent(event);
+}
+
+void sendPitchBendEvent(int16_t pitchBend) {
+  SynthEvent event;
+  event.type = SynthEventType::PitchBend;
+  event.pitchBend = pitchBend;
   sendSynthEvent(event);
 }
 

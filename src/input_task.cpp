@@ -29,7 +29,7 @@ void inputTask(void*) {
       while (keyboard.readEvent(&keyEvent)) {
         if (keyEvent.key == CardputerKey::Character) {
           const KeyNote* note = findNoteByKey(keyEvent.character);
-          if (note != nullptr) sendNoteEvent(*note, keyEvent.pressed);
+          if (note != nullptr) sendNoteEvent(*note, keyEvent.pressed, 127);
           continue;
         }
 

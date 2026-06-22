@@ -343,13 +343,17 @@ void dispatchMidiMessage(const uint8_t* packet) {
   const MidiMessage message = parseUsbMidiPacket(packet);
   switch (message.type) {
     case MidiMessageType::NoteOn:
-      sendMidiNoteEvent(message.note, true);
+      sendMidiNoteEvent(message.note, true, message.velocity);
       break;
     case MidiMessageType::NoteOff:
-      sendMidiNoteEvent(message.note, false);
+      sendMidiNoteEvent(message.note, false, message.velocity);
       break;
     case MidiMessageType::ControlChange:
+      sendControlChangeEvent(message.control, message.value);
+      break;
     case MidiMessageType::PitchBend:
+      sendPitchBendEvent(message.pitchBend);
+      break;
     case MidiMessageType::Unknown:
       break;
   }

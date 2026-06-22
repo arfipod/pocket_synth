@@ -28,8 +28,8 @@ void renderAudioBuffer(SynthAudioState* state, int32_t* buffer, size_t frames) {
       for (auto& note : state->notes) {
         if (!note.active) continue;
 
-        mixed += oscillatorSample(note.phase, state->waveform) * PER_NOTE_GAIN;
-        note.phase += note.phaseIncrement;
+        mixed += oscillatorSample(note.phase, state->waveform) * PER_NOTE_GAIN * note.velocityGain;
+        note.phase += note.phaseIncrement * state->pitchBendMultiplier;
         if (note.phase >= 1.0f) note.phase -= 1.0f;
       }
       mixed *= normalize;

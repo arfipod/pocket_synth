@@ -56,6 +56,7 @@ void initializeSynthState(SynthAudioState* state) {
   *state = {};
   state->waveform = Waveform::Sine;
   state->masterVolume = INITIAL_MASTER_VOLUME;
+  state->pitchBendMultiplier = 1.0f;
 }
 
 uint8_t activeSlotCount(const SynthAudioState& state) {
@@ -70,7 +71,7 @@ bool hasUiNoteIndex(uint8_t noteIndex) {
   return noteIndex < 32;
 }
 
-void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
+void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi, uint8_t velocity) {
   if (state == nullptr) return;
 
   if (hasUiNoteIndex(noteIndex)) {
@@ -88,8 +89,11 @@ void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
     if (note.active) continue;
 
     note.active = true;
+    note.keyReleased = false;
     note.noteIndex = noteIndex;
     note.midi = midi;
+    note.velocity = velocity;
+    note.velocityGain = 0.10f + 0.90f * sqrtf(velocity / 127.0f);
     note.frequency = midiFrequency(midi);
     note.phase = 0.0f;
     note.phaseIncrement = note.frequency / static_cast<float>(SAMPLE_RATE);
@@ -112,7 +116,10 @@ void noteOff(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
     const bool matchesUiNote = hasUiNoteIndex(noteIndex) && note.noteIndex == noteIndex;
     const bool matchesExternalNote = !hasUiNoteIndex(noteIndex) && note.noteIndex == noteIndex && note.midi == midi;
     if (note.active && (matchesUiNote || matchesExternalNote)) {
-      note = {};
+      note.keyReleased = true;
+      if (!state->sustainPedal) {
+        note = {};
+      }
     }
   }
   state->activeCount = activeSlotCount(*state);
@@ -123,7 +130,7 @@ void applySynthEvent(SynthAudioState* state, const SynthEvent& event) {
 
   switch (event.type) {
     case SynthEventType::NoteOn:
-      noteOn(state, event.noteIndex, event.midi);
+      noteOn(state, event.noteIndex, event.midi, event.velocity);
       break;
     case SynthEventType::NoteOff:
       noteOff(state, event.noteIndex, event.midi);
@@ -133,6 +140,26 @@ void applySynthEvent(SynthAudioState* state, const SynthEvent& event) {
       break;
     case SynthEventType::AdjustVolume:
       state->masterVolume = clampFloat(state->masterVolume + event.value, 0.0f, 1.0f);
+      break;
+    case SynthEventType::ControlChange:
+      if (event.control < 128) {
+        state->cc[event.control] = event.controlValue;
+      }
+      if (event.control == 64) {
+        state->sustainPedal = (event.controlValue >= 64);
+        if (!state->sustainPedal) {
+          for (auto& note : state->notes) {
+            if (note.active && note.keyReleased) {
+              note = {};
+            }
+          }
+          state->activeCount = activeSlotCount(*state);
+        }
+      }
+      break;
+    case SynthEventType::PitchBend:
+      state->pitchBendRaw = event.pitchBend;
+      state->pitchBendMultiplier = powf(2.0f, (static_cast<float>(event.pitchBend) / 8192.0f) * (2.0f / 12.0f));
       break;
   }
 }
