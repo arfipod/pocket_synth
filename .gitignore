@@ -39,3 +39,6 @@ secrets.*
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Other
+include/wifi_credentials.h

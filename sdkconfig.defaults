@@ -1,6 +1,7 @@
-# Match the 2 MB flash chip detected on the connected board.
-CONFIG_ESPTOOLPY_FLASHSIZE_2MB=y
-CONFIG_ESPTOOLPY_FLASHSIZE="2MB"
+# Match the 8 MB flash chip on the Cardputer ADV.
+# CONFIG_ESPTOOLPY_FLASHSIZE_2MB is not set
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
 
 # The app does not use TLS yet, and the generated certificate bundle target
 # fails on this PlatformIO/ESP-IDF setup.

@@ -4,6 +4,7 @@
 #include "synth_config.h"
 
 #include "esp_err.h"
+#include "esp_flash.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,12 +13,26 @@ namespace {
 
 constexpr const char* TAG = "pocketsynth";
 
+void logDetectedFlashSize() {
+  uint32_t flashSizeBytes = 0;
+  esp_err_t err = esp_flash_get_size(nullptr, &flashSizeBytes);
+  if (err == ESP_OK) {
+    ESP_LOGI(TAG,
+             "Detected flash size: %lu bytes (%lu MB)",
+             static_cast<unsigned long>(flashSizeBytes),
+             static_cast<unsigned long>(flashSizeBytes / (1024UL * 1024UL)));
+  } else {
+    ESP_LOGW(TAG, "Flash size detection failed: %s", esp_err_to_name(err));
+  }
+}
+
 }  // namespace
 
 extern "C" void app_main(void) {
   using namespace pocketsynth;
 
   ESP_LOGI(TAG, "Starting pocketsynth iteration 1");
+  logDetectedFlashSize();
 
   if (!initializeAppState()) {
     ESP_LOGE(TAG, "Synth event queue allocation failed");

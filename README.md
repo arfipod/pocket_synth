@@ -32,6 +32,12 @@ Main firmware:
 pio run -e cardputer_adv
 ```
 
+OTA-capable development build, using two 3 MB app slots on the 8 MB flash:
+
+```powershell
+pio run -e cardputer_adv_ota
+```
+
 UI test bench:
 
 ```powershell
@@ -44,3 +50,22 @@ pio run -d lib/firmware/cardputer_adv_ui_test -e cardputer_adv
 - 240 x 135 px ST7789V2 display in landscape orientation.
 - I2S/speaker audio output.
 - Integrated physical keyboard.
+
+## Serial Recovery
+
+Keep serial flashing as the recovery path for bad OTA/dev images or partition
+changes. Connect over USB, hold the Cardputer ADV boot button while resetting or
+plugging in if needed, then reflash from PlatformIO:
+
+```powershell
+pio run -e cardputer_adv -t upload
+```
+
+For the OTA partition layout, use:
+
+```powershell
+pio run -e cardputer_adv_ota -t upload
+```
+
+OTA updates must write only application slots. If a partition table changes or
+an OTA image cannot boot, recover with serial upload rather than OTA.
