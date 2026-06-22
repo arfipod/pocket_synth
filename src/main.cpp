@@ -5,6 +5,7 @@
 #include "dev_mode.h"
 #include "pocketsynth_tasks.h"
 #include "synth_config.h"
+#include "usb_host_diag.h"
 
 #include "esp_err.h"
 #include "esp_flash.h"
@@ -49,6 +50,13 @@ extern "C" void app_main(void) {
                    isDevModeBuildEnabled() ? "yes" : "no",
                    isDevModeForced() ? "yes" : "no",
                    isDevModeActive() ? "yes" : "no");
+  ESP_LOGI(TAG,
+           "USB Host diagnostics build=%s",
+           isUsbHostDiagnosticsBuildEnabled() ? "yes" : "no");
+  addDiagnosticLog("I",
+                   TAG,
+                   "USB Host diagnostics build=%s",
+                   isUsbHostDiagnosticsBuildEnabled() ? "yes" : "no");
 
   BootValidationResult bootValidation = runBootValidation();
   if (!bootValidation.coreSelfTestPassed) {
@@ -63,6 +71,14 @@ extern "C" void app_main(void) {
     if (devModeErr != ESP_OK) {
       ESP_LOGE(TAG, "WiFi Dev Mode init failed: %s", esp_err_to_name(devModeErr));
       addDiagnosticLog("E", TAG, "WiFi Dev Mode init failed: %s", esp_err_to_name(devModeErr));
+    }
+  }
+
+  if (isUsbHostDiagnosticsBuildEnabled()) {
+    esp_err_t usbDiagErr = initializeUsbHostDiagnostics();
+    if (usbDiagErr != ESP_OK) {
+      ESP_LOGE(TAG, "USB Host diagnostics init failed: %s", esp_err_to_name(usbDiagErr));
+      addDiagnosticLog("E", TAG, "USB Host diagnostics init failed: %s", esp_err_to_name(usbDiagErr));
     }
   }
 

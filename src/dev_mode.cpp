@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "boot_diagnostics.h"
+#include "usb_host_diag.h"
 
 #include "esp_app_format.h"
 #include "esp_flash.h"
@@ -33,8 +34,12 @@ constexpr uint8_t DEV_AP_CHANNEL = 6;
 constexpr uint8_t DEV_AP_MAX_CONNECTIONS = 2;
 constexpr size_t OTA_RECV_BUFFER_SIZE = 1024;
 constexpr TickType_t OTA_REBOOT_DELAY = pdMS_TO_TICKS(800);
-constexpr size_t STATUS_RESPONSE_SIZE = 1536;
+constexpr size_t STATUS_RESPONSE_SIZE = 12288;
+constexpr size_t USB_STATUS_RESPONSE_SIZE = 8192;
 constexpr size_t LOG_RESPONSE_SIZE = 2048;
+
+char gStatusResponse[STATUS_RESPONSE_SIZE] = {};
+char gUsbStatusResponse[USB_STATUS_RESPONSE_SIZE] = {};
 
 const char* otaStateToString(esp_err_t stateErr, esp_ota_img_states_t state);
 
@@ -60,10 +65,13 @@ esp_err_t statusHandler(httpd_req_t* req) {
   BootDiagnosticsSnapshot diagnostics = {};
   copyBootDiagnostics(&diagnostics);
 
-  char response[STATUS_RESPONSE_SIZE] = {};
+  writeUsbHostDiagnosticsJson(gUsbStatusResponse, sizeof(gUsbStatusResponse));
+
+  char* response = gStatusResponse;
+  response[0] = '\0';
   const int written = snprintf(
       response,
-      sizeof(response),
+      STATUS_RESPONSE_SIZE,
       "{"
       "\"app\":\"pocketsynth\","
       "\"firmware\":{\"project\":\"%s\",\"version\":\"%s\",\"built\":\"%s %s\"},"
@@ -82,7 +90,8 @@ esp_err_t statusHandler(httpd_req_t* req) {
       "\"i2s\":\"%s\","
       "\"codec\":\"%s\""
       "},"
-      "\"usb_midi\":{\"status\":\"not_implemented\"}"
+      "\"usb_midi\":{\"status\":\"not_parsing\"},"
+      "\"usb_host_diag\":%s"
       "}\n",
       appDescription != nullptr ? appDescription->project_name : "unknown",
       appDescription != nullptr ? appDescription->version : "unknown",
@@ -98,9 +107,10 @@ esp_err_t statusHandler(httpd_req_t* req) {
       diagnostics.taskProbeReady ? "true" : "false",
       esp_err_to_name(diagnostics.i2cResult),
       esp_err_to_name(diagnostics.i2sResult),
-      esp_err_to_name(diagnostics.codecResult));
+      esp_err_to_name(diagnostics.codecResult),
+      gUsbStatusResponse);
 
-  if (written <= 0 || written >= static_cast<int>(sizeof(response))) {
+  if (written <= 0 || written >= static_cast<int>(STATUS_RESPONSE_SIZE)) {
     httpd_resp_set_status(req, "500 Internal Server Error");
     return httpd_resp_sendstr(req, "status response too large\n");
   }
@@ -338,6 +348,7 @@ esp_err_t startDevAccessPoint() {
 esp_err_t startStatusServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
+  config.stack_size = 8192;
 
   httpd_handle_t server = nullptr;
   esp_err_t err = httpd_start(&server, &config);

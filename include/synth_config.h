@@ -23,10 +23,14 @@ inline constexpr uint32_t AUDIO_TASK_STACK = 4096;
 inline constexpr uint32_t CONTROL_TASK_STACK = 4096;
 inline constexpr uint32_t INPUT_TASK_STACK = 4096;
 inline constexpr uint32_t UI_TASK_STACK = 8192;
+inline constexpr uint32_t USB_HOST_DAEMON_TASK_STACK = 4096;
+inline constexpr uint32_t USB_HOST_CLIENT_TASK_STACK = 6144;
 
 inline constexpr uint32_t AUDIO_TASK_PRIORITY = 20;
 inline constexpr uint32_t CONTROL_TASK_PRIORITY = 9;
 inline constexpr uint32_t INPUT_TASK_PRIORITY = 8;
 inline constexpr uint32_t UI_TASK_PRIORITY = 4;
+inline constexpr uint32_t USB_HOST_DAEMON_TASK_PRIORITY = 5;
+inline constexpr uint32_t USB_HOST_CLIENT_TASK_PRIORITY = 6;
 
 }  // namespace pocketsynth

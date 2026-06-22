@@ -3566,6 +3566,60 @@ CONFIG_WL_SECTOR_SIZE_4096=y
 # default:
 CONFIG_WL_SECTOR_SIZE=4096
 # end of Wear Levelling
+
+#
+# USB-OTG
+#
+CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=1024
+# default:
+CONFIG_USB_HOST_HW_BUFFER_BIAS_BALANCED=y
+# default:
+# CONFIG_USB_HOST_HW_BUFFER_BIAS_IN is not set
+# default:
+# CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT is not set
+
+#
+# Hub Driver Configuration
+#
+
+#
+# Root Port configuration
+#
+# default:
+CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=250
+# default:
+CONFIG_USB_HOST_RESET_HOLD_MS=30
+# default:
+CONFIG_USB_HOST_RESET_RECOVERY_MS=30
+# default:
+CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=10
+# default:
+CONFIG_USB_HOST_RESUME_HOLD_MS=30
+# default:
+CONFIG_USB_HOST_RESUME_RECOVERY_MS=20
+# default:
+CONFIG_USB_HOST_SUSPEND_ENTRY_MS=20
+# end of Root Port configuration
+
+CONFIG_USB_HOST_HUBS_SUPPORTED=y
+# default:
+CONFIG_USB_HOST_HUB_MULTI_LEVEL=y
+
+#
+# Downstream Port configuration
+#
+# default:
+CONFIG_USB_HOST_EXT_PORT_RESET_RECOVERY_DELAY_MS=30
+# default:
+# CONFIG_USB_HOST_EXT_PORT_CUSTOM_POWER_ON_DELAY_ENABLE is not set
+# end of Downstream Port configuration
+# end of Hub Driver Configuration
+
+# default:
+# CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is not set
+# default:
+CONFIG_USB_OTG_SUPPORTED=y
+# end of USB-OTG
 # end of Component config
 
 # default:
