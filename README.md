@@ -22,6 +22,7 @@ then musical analysis.
 - `docs/ui.md`: compact UI, controls, colors, and JSON reference.
 - `docs/implementation-plan.md`: phases 1A-1G with acceptance criteria.
 - `docs/decisions.md`: initial technical decisions.
+- `docs/dev-mode-ota.md`: local WiFi Dev Mode OTA upload and recovery checklist.
 - `AGENTS.md`: guide for code agents working in this repo.
 
 ## Build
@@ -38,7 +39,7 @@ OTA-capable development build, using two 3 MB app slots on the 8 MB flash:
 pio run -e cardputer_adv_ota
 ```
 
-WiFi Dev Mode skeleton build, forced active for early testing:
+WiFi Dev Mode build, forced active for local OTA testing:
 
 ```powershell
 pio run -e cardputer_adv_wifi_dev
@@ -86,11 +87,12 @@ POCKETSYNTH_ENABLE_WIFI_DEV_MODE=1
 POCKETSYNTH_FORCE_DEV_MODE=1
 ```
 
-The current skeleton does not implement OTA upload. When forced active, it starts
-a small WPA2 access point and serves only:
+When forced active, it starts a small WPA2 access point and serves:
 
 ```text
 http://192.168.4.1/status
+POST http://192.168.4.1/ota
+http://192.168.4.1/logs
 ```
 
 Manual test:
@@ -106,5 +108,24 @@ curl http://192.168.4.1/status
 Expected response:
 
 ```json
-{"app":"pocketsynth","dev_mode":true,"ota":false}
+{"app":"pocketsynth","dev_mode":true,"ota":true}
 ```
+
+Local OTA upload:
+
+```powershell
+python tools/ota_upload.py --host 192.168.4.1 --bin .pio/build/cardputer_adv_ota/firmware.bin
+```
+
+WiFi diagnostics:
+
+```powershell
+python tools/pocketsynth_status.py --host 192.168.4.1
+python tools/pocketsynth_logs.py --host 192.168.4.1
+```
+
+The OTA endpoint is only available in Dev Mode. It writes the inactive OTA app
+partition, requires the placeholder token `X-PocketSynth-Token:
+pocketsynth-dev`, and reboots only after a successful image validation and boot
+partition switch. See `docs/dev-mode-ota.md` for the manual checklist and serial
+recovery flow.

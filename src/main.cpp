@@ -1,5 +1,7 @@
 #include "app_state.h"
 #include "audio_output.h"
+#include "boot_diagnostics.h"
+#include "boot_validation.h"
 #include "dev_mode.h"
 #include "pocketsynth_tasks.h"
 #include "synth_config.h"
@@ -32,39 +34,45 @@ void logDetectedFlashSize() {
 extern "C" void app_main(void) {
   using namespace pocketsynth;
 
+  resetBootDiagnostics();
   ESP_LOGI(TAG, "Starting pocketsynth iteration 1");
+  addDiagnosticLog("I", TAG, "starting pocketsynth iteration 1");
   logDetectedFlashSize();
   ESP_LOGI(TAG,
            "WiFi Dev Mode build=%s forced=%s active=%s",
            isDevModeBuildEnabled() ? "yes" : "no",
            isDevModeForced() ? "yes" : "no",
            isDevModeActive() ? "yes" : "no");
+  addDiagnosticLog("I",
+                   TAG,
+                   "WiFi Dev Mode build=%s forced=%s active=%s",
+                   isDevModeBuildEnabled() ? "yes" : "no",
+                   isDevModeForced() ? "yes" : "no",
+                   isDevModeActive() ? "yes" : "no");
+
+  BootValidationResult bootValidation = runBootValidation();
+  if (!bootValidation.coreSelfTestPassed) {
+    ESP_LOGE(TAG, "Boot self-test failed");
+    addDiagnosticLog("E", TAG, "boot self-test failed");
+    return;
+  }
+  confirmOtaAppIfNeeded(bootValidation);
 
   if (isDevModeActive()) {
     esp_err_t devModeErr = initializeDevMode();
     if (devModeErr != ESP_OK) {
       ESP_LOGE(TAG, "WiFi Dev Mode init failed: %s", esp_err_to_name(devModeErr));
+      addDiagnosticLog("E", TAG, "WiFi Dev Mode init failed: %s", esp_err_to_name(devModeErr));
     }
   }
 
-  if (!initializeAppState()) {
-    ESP_LOGE(TAG, "Synth event queue allocation failed");
-    return;
-  }
-
-  esp_err_t err = ensureI2cBus();
+  esp_err_t err = initializeCodecOutput();
+  setBootDiagnosticResult(DiagnosticStep::Codec, err);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "I2C init failed: %s", esp_err_to_name(err));
-  }
-
-  err = initializeI2sOutput();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "I2S init failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "ES8311 init failed: %s", esp_err_to_name(err));
+    addDiagnosticLog("W", TAG, "ES8311 init failed: %s", esp_err_to_name(err));
   } else {
-    err = initializeCodecOutput();
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "ES8311 init failed: %s", esp_err_to_name(err));
-    }
+    addDiagnosticLog("I", TAG, "ES8311 codec init OK");
   }
 
   xTaskCreatePinnedToCore(controlTask, "SynthControlTask", CONTROL_TASK_STACK, nullptr, CONTROL_TASK_PRIORITY, nullptr, 0);
