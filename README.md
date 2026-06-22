@@ -38,6 +38,12 @@ OTA-capable development build, using two 3 MB app slots on the 8 MB flash:
 pio run -e cardputer_adv_ota
 ```
 
+WiFi Dev Mode skeleton build, forced active for early testing:
+
+```powershell
+pio run -e cardputer_adv_wifi_dev
+```
+
 UI test bench:
 
 ```powershell
@@ -69,3 +75,36 @@ pio run -e cardputer_adv_ota -t upload
 
 OTA updates must write only application slots. If a partition table changes or
 an OTA image cannot boot, recover with serial upload rather than OTA.
+
+## WiFi Dev Mode
+
+WiFi Dev Mode is disabled in the normal `cardputer_adv` build. The firmware only
+initializes WiFi when both compile-time flags are present:
+
+```text
+POCKETSYNTH_ENABLE_WIFI_DEV_MODE=1
+POCKETSYNTH_FORCE_DEV_MODE=1
+```
+
+The current skeleton does not implement OTA upload. When forced active, it starts
+a small WPA2 access point and serves only:
+
+```text
+http://192.168.4.1/status
+```
+
+Manual test:
+
+1. Flash `pio run -e cardputer_adv_wifi_dev -t upload`.
+2. Connect to WiFi SSID `pocketsynth-dev` with password `pocketsynth`.
+3. Open `http://192.168.4.1/status` or run:
+
+```powershell
+curl http://192.168.4.1/status
+```
+
+Expected response:
+
+```json
+{"app":"pocketsynth","dev_mode":true,"ota":false}
+```

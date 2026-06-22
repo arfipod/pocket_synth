@@ -1,5 +1,6 @@
 #include "app_state.h"
 #include "audio_output.h"
+#include "dev_mode.h"
 #include "pocketsynth_tasks.h"
 #include "synth_config.h"
 
@@ -33,6 +34,18 @@ extern "C" void app_main(void) {
 
   ESP_LOGI(TAG, "Starting pocketsynth iteration 1");
   logDetectedFlashSize();
+  ESP_LOGI(TAG,
+           "WiFi Dev Mode build=%s forced=%s active=%s",
+           isDevModeBuildEnabled() ? "yes" : "no",
+           isDevModeForced() ? "yes" : "no",
+           isDevModeActive() ? "yes" : "no");
+
+  if (isDevModeActive()) {
+    esp_err_t devModeErr = initializeDevMode();
+    if (devModeErr != ESP_OK) {
+      ESP_LOGE(TAG, "WiFi Dev Mode init failed: %s", esp_err_to_name(devModeErr));
+    }
+  }
 
   if (!initializeAppState()) {
     ESP_LOGE(TAG, "Synth event queue allocation failed");
