@@ -87,7 +87,9 @@ POCKETSYNTH_ENABLE_WIFI_DEV_MODE=1
 POCKETSYNTH_FORCE_DEV_MODE=1
 ```
 
-When forced active, it starts a small WPA2 access point and serves:
+When forced active, it starts a small WPA2 access point and also joins the
+2.4 GHz station network from `include/wifi_credentials.h` when available. It
+serves:
 
 ```text
 http://192.168.4.1/status
@@ -98,7 +100,8 @@ http://192.168.4.1/logs
 Manual test:
 
 1. Flash `pio run -e cardputer_adv_wifi_dev -t upload`.
-2. Connect to WiFi SSID `pocketsynth-dev` with password `pocketsynth`.
+2. Connect to WiFi SSID `pocketsynth-dev` with password `pocketsynth`, or keep
+   the PC on the same router network as the station credentials.
 3. Open `http://192.168.4.1/status` or run:
 
 ```powershell

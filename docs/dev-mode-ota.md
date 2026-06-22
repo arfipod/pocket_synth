@@ -9,10 +9,18 @@ pio run -e cardputer_adv_wifi_dev -t upload
 The normal `cardputer_adv` build does not start WiFi and does not expose `/ota`,
 `/status`, or `/logs`.
 
+The Dev Mode build starts both:
+
+- a local AP, `pocketsynth-dev`, at `192.168.4.1`;
+- a station connection using `include/wifi_credentials.h`. When
+  `WIFI_SSID2/WIFI_PASSWORD_2` are present, that 2.4 GHz network is preferred
+  for Cardputer ADV router-based OTA tests.
+
 ## Upload
 
-Build the firmware image you want to send, connect the PC to the
-`pocketsynth-dev` WiFi network, then run:
+Build the firmware image you want to send, then either connect the PC to the
+`pocketsynth-dev` WiFi network or use the device IP assigned by the router.
+For the local AP path, run:
 
 ```powershell
 pio run -e cardputer_adv_ota
@@ -22,6 +30,9 @@ python tools/ota_upload.py --host 192.168.4.1 --bin .pio/build/cardputer_adv_ota
 Use `.pio/build/cardputer_adv_wifi_dev/firmware.bin` instead when the updated
 app should keep WiFi Dev Mode available. Do not use the plain `cardputer_adv`
 image for OTA rollback testing because it is the serial/single-app build.
+
+For router-based OTA, replace `192.168.4.1` with the station IP shown in
+`/status`, `/logs`, serial logs, or the router client list.
 
 The endpoint accepts a raw `firmware.bin` body at `POST /ota`. It requires the
 placeholder header `X-PocketSynth-Token: pocketsynth-dev`; the upload tool sends
@@ -52,13 +63,14 @@ GET /logs
 ```
 
 `/status` returns firmware version, flash size, free heap, active partition,
-OTA state, boot/audio initialization results, USB MIDI raw-reader state, and
-USB Host diagnostics when the Dev Mode diagnostics build flag is enabled. USB
-Host diagnostics report connection state, VID/PID, device class triplet,
-configurations, interfaces, and endpoints without emitting synth events.
+OTA state, boot/audio initialization results, and lightweight USB feature flags.
+The response intentionally avoids large USB diagnostic snapshots so the HTTP
+server remains stable while USB host and MIDI tasks are active.
 
 `/logs` returns a bounded in-memory diagnostic ring buffer. It is not a full
-serial log mirror and intentionally does not log from the audio render path.
+serial log mirror and intentionally does not log from the audio render path. USB
+Host and USB MIDI diagnostics, including connection state, VID/PID, endpoints,
+and raw MIDI packets, are reported here.
 
 ## Manual Checklist
 
@@ -69,7 +81,8 @@ serial log mirror and intentionally does not log from the audio render path.
    ```
 
 2. Confirm serial boot logs show Dev Mode active and `/ota` ready.
-3. Connect to SSID `pocketsynth-dev` with password `pocketsynth`.
+3. Connect to SSID `pocketsynth-dev` with password `pocketsynth`, or keep the
+   PC on the same router network as the configured station credentials.
 4. Confirm status:
 
    ```powershell

@@ -6,6 +6,7 @@
 namespace pocketsynth {
 
 void sendNoteEvent(const KeyNote& note, bool pressed);
+void sendMidiNoteEvent(uint8_t midi, bool pressed);
 void sendWaveformEvent(Waveform waveform);
 void sendVolumeDelta(float delta);
 

@@ -12,6 +12,14 @@ void sendNoteEvent(const KeyNote& note, bool pressed) {
   sendSynthEvent(event);
 }
 
+void sendMidiNoteEvent(uint8_t midi, bool pressed) {
+  SynthEvent event = {};
+  event.type = pressed ? SynthEventType::NoteOn : SynthEventType::NoteOff;
+  event.noteIndex = SYNTH_NO_UI_NOTE_INDEX;
+  event.midi = midi;
+  sendSynthEvent(event);
+}
+
 void sendWaveformEvent(Waveform waveform) {
   SynthEvent event = {};
   event.type = SynthEventType::SetWaveform;

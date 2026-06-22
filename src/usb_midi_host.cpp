@@ -1,7 +1,9 @@
 #include "usb_midi_host.h"
 
 #include "boot_diagnostics.h"
+#include "midi_message.h"
 #include "synth_config.h"
+#include "synth_events.h"
 #include "usb_host_runtime.h"
 
 #include "esp_err.h"
@@ -333,9 +335,29 @@ void publishTransferActive(bool active, esp_err_t err) {
   portEXIT_CRITICAL(&gUsbMidiMux);
 }
 
+bool isEmptyUsbMidiPacket(const uint8_t* packet) {
+  return packet != nullptr && packet[0] == 0 && packet[1] == 0 && packet[2] == 0 && packet[3] == 0;
+}
+
+void dispatchMidiMessage(const uint8_t* packet) {
+  const MidiMessage message = parseUsbMidiPacket(packet);
+  switch (message.type) {
+    case MidiMessageType::NoteOn:
+      sendMidiNoteEvent(message.note, true);
+      break;
+    case MidiMessageType::NoteOff:
+      sendMidiNoteEvent(message.note, false);
+      break;
+    case MidiMessageType::ControlChange:
+    case MidiMessageType::PitchBend:
+    case MidiMessageType::Unknown:
+      break;
+  }
+}
+
 void publishPacket(const uint8_t* packet) {
   uint32_t packetCount = 0;
-  if (packet == nullptr) {
+  if (packet == nullptr || isEmptyUsbMidiPacket(packet)) {
     return;
   }
 
@@ -364,6 +386,7 @@ void publishPacket(const uint8_t* packet) {
                    static_cast<unsigned int>(packet[1]),
                    static_cast<unsigned int>(packet[2]),
                    static_cast<unsigned int>(packet[3]));
+  dispatchMidiMessage(packet);
 }
 
 void resetTrackedDevice(TrackedUsbMidiDevice* device) {

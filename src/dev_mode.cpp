@@ -8,6 +8,7 @@
 #include "boot_diagnostics.h"
 #include "usb_host_diag.h"
 #include "usb_midi_host.h"
+#include "wifi_credentials.h"
 
 #include "esp_app_format.h"
 #include "esp_flash.h"
@@ -33,16 +34,19 @@ constexpr const char* DEV_AP_PASSWORD = "pocketsynth";
 constexpr const char* DEV_OTA_TOKEN = "pocketsynth-dev";
 constexpr uint8_t DEV_AP_CHANNEL = 6;
 constexpr uint8_t DEV_AP_MAX_CONNECTIONS = 2;
+#if defined(WIFI_SSID2) && defined(WIFI_PASSWORD_2)
+constexpr const char* DEV_STA_SSID = WIFI_SSID2;
+constexpr const char* DEV_STA_PASSWORD = WIFI_PASSWORD_2;
+#else
+constexpr const char* DEV_STA_SSID = WIFI_SSID;
+constexpr const char* DEV_STA_PASSWORD = WIFI_PASSWORD;
+#endif
 constexpr size_t OTA_RECV_BUFFER_SIZE = 1024;
 constexpr TickType_t OTA_REBOOT_DELAY = pdMS_TO_TICKS(800);
 constexpr size_t STATUS_RESPONSE_SIZE = 12288;
-constexpr size_t USB_STATUS_RESPONSE_SIZE = 8192;
-constexpr size_t USB_MIDI_STATUS_RESPONSE_SIZE = 2048;
 constexpr size_t LOG_RESPONSE_SIZE = 2048;
 
 char gStatusResponse[STATUS_RESPONSE_SIZE] = {};
-char gUsbStatusResponse[USB_STATUS_RESPONSE_SIZE] = {};
-char gUsbMidiStatusResponse[USB_MIDI_STATUS_RESPONSE_SIZE] = {};
 
 const char* otaStateToString(esp_err_t stateErr, esp_ota_img_states_t state);
 
@@ -68,9 +72,6 @@ esp_err_t statusHandler(httpd_req_t* req) {
   BootDiagnosticsSnapshot diagnostics = {};
   copyBootDiagnostics(&diagnostics);
 
-  writeUsbHostDiagnosticsJson(gUsbStatusResponse, sizeof(gUsbStatusResponse));
-  writeUsbMidiHostStatusJson(gUsbMidiStatusResponse, sizeof(gUsbMidiStatusResponse));
-
   char* response = gStatusResponse;
   response[0] = '\0';
   const int written = snprintf(
@@ -94,8 +95,8 @@ esp_err_t statusHandler(httpd_req_t* req) {
       "\"i2s\":\"%s\","
       "\"codec\":\"%s\""
       "},"
-      "\"usb_midi\":%s,"
-      "\"usb_host_diag\":%s"
+      "\"usb_midi_enabled\":%s,"
+      "\"usb_host_diag_enabled\":%s"
       "}\n",
       appDescription != nullptr ? appDescription->project_name : "unknown",
       appDescription != nullptr ? appDescription->version : "unknown",
@@ -112,8 +113,8 @@ esp_err_t statusHandler(httpd_req_t* req) {
       esp_err_to_name(diagnostics.i2cResult),
       esp_err_to_name(diagnostics.i2sResult),
       esp_err_to_name(diagnostics.codecResult),
-      gUsbMidiStatusResponse,
-      gUsbStatusResponse);
+      isUsbMidiHostBuildEnabled() ? "true" : "false",
+      isUsbHostDiagnosticsBuildEnabled() ? "true" : "false");
 
   if (written <= 0 || written >= static_cast<int>(STATUS_RESPONSE_SIZE)) {
     httpd_resp_set_status(req, "500 Internal Server Error");
@@ -167,7 +168,7 @@ esp_err_t logsHandler(httpd_req_t* req) {
 }
 
 bool requestHasValidOtaToken(httpd_req_t* req) {
-  char token[sizeof(DEV_OTA_TOKEN)] = {};
+  char token[32] = {};
   esp_err_t err = httpd_req_get_hdr_value_str(req, "X-PocketSynth-Token", token, sizeof(token));
   return err == ESP_OK && std::strcmp(token, DEV_OTA_TOKEN) == 0;
 }
@@ -297,7 +298,22 @@ esp_err_t initializeNvsForWifi() {
   return err;
 }
 
-esp_err_t startDevAccessPoint() {
+void wifiEventHandler(void*, esp_event_base_t eventBase, int32_t eventId, void* eventData) {
+  if (eventBase == WIFI_EVENT && eventId == WIFI_EVENT_STA_DISCONNECTED) {
+    ESP_LOGW(TAG, "WiFi Dev Mode STA disconnected; reconnecting to %s", DEV_STA_SSID);
+    addDiagnosticLog("W", TAG, "STA disconnected; reconnecting to %s", DEV_STA_SSID);
+    esp_wifi_connect();
+    return;
+  }
+
+  if (eventBase == IP_EVENT && eventId == IP_EVENT_STA_GOT_IP) {
+    const auto* event = static_cast<ip_event_got_ip_t*>(eventData);
+    ESP_LOGI(TAG, "WiFi Dev Mode STA IP " IPSTR, IP2STR(&event->ip_info.ip));
+    addDiagnosticLog("I", TAG, "STA IP " IPSTR, IP2STR(&event->ip_info.ip));
+  }
+}
+
+esp_err_t startDevWifi() {
   esp_err_t err = initializeNvsForWifi();
   if (err != ESP_OK) {
     return err;
@@ -318,36 +334,78 @@ esp_err_t startDevAccessPoint() {
     return ESP_FAIL;
   }
 
+  esp_netif_t* staNetif = esp_netif_create_default_wifi_sta();
+  if (staNetif == nullptr) {
+    return ESP_FAIL;
+  }
+
   wifi_init_config_t initConfig = WIFI_INIT_CONFIG_DEFAULT();
   err = esp_wifi_init(&initConfig);
   if (err != ESP_OK) {
     return err;
   }
 
-  wifi_config_t wifiConfig = {};
-  std::strncpy(reinterpret_cast<char*>(wifiConfig.ap.ssid),
+  err = esp_event_handler_instance_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifiEventHandler, nullptr, nullptr);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  err = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifiEventHandler, nullptr, nullptr);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  wifi_config_t apConfig = {};
+  std::strncpy(reinterpret_cast<char*>(apConfig.ap.ssid),
                DEV_AP_SSID,
-               sizeof(wifiConfig.ap.ssid));
-  std::strncpy(reinterpret_cast<char*>(wifiConfig.ap.password),
+               sizeof(apConfig.ap.ssid));
+  std::strncpy(reinterpret_cast<char*>(apConfig.ap.password),
                DEV_AP_PASSWORD,
-               sizeof(wifiConfig.ap.password));
-  wifiConfig.ap.ssid_len = std::strlen(DEV_AP_SSID);
-  wifiConfig.ap.channel = DEV_AP_CHANNEL;
-  wifiConfig.ap.max_connection = DEV_AP_MAX_CONNECTIONS;
-  wifiConfig.ap.authmode = WIFI_AUTH_WPA2_PSK;
-  wifiConfig.ap.pmf_cfg.required = false;
+               sizeof(apConfig.ap.password));
+  apConfig.ap.ssid_len = std::strlen(DEV_AP_SSID);
+  apConfig.ap.channel = DEV_AP_CHANNEL;
+  apConfig.ap.max_connection = DEV_AP_MAX_CONNECTIONS;
+  apConfig.ap.authmode = WIFI_AUTH_WPA2_PSK;
+  apConfig.ap.pmf_cfg.required = false;
 
-  err = esp_wifi_set_mode(WIFI_MODE_AP);
+  wifi_config_t staConfig = {};
+  std::strncpy(reinterpret_cast<char*>(staConfig.sta.ssid),
+               DEV_STA_SSID,
+               sizeof(staConfig.sta.ssid));
+  std::strncpy(reinterpret_cast<char*>(staConfig.sta.password),
+               DEV_STA_PASSWORD,
+               sizeof(staConfig.sta.password));
+  staConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+  staConfig.sta.pmf_cfg.capable = true;
+  staConfig.sta.pmf_cfg.required = false;
+
+  err = esp_wifi_set_mode(WIFI_MODE_APSTA);
   if (err != ESP_OK) {
     return err;
   }
 
-  err = esp_wifi_set_config(WIFI_IF_AP, &wifiConfig);
+  err = esp_wifi_set_config(WIFI_IF_AP, &apConfig);
   if (err != ESP_OK) {
     return err;
   }
 
-  return esp_wifi_start();
+  err = esp_wifi_set_config(WIFI_IF_STA, &staConfig);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  err = esp_wifi_start();
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  err = esp_wifi_connect();
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "WiFi Dev Mode STA connect start failed: %s", esp_err_to_name(err));
+    addDiagnosticLog("W", TAG, "STA connect failed: %s", esp_err_to_name(err));
+  }
+
+  return ESP_OK;
 }
 
 esp_err_t startStatusServer() {
@@ -421,9 +479,9 @@ esp_err_t initializeDevMode() {
 
   ESP_LOGW(TAG, "WiFi Dev Mode active; local OTA upload enabled");
 
-  esp_err_t err = startDevAccessPoint();
+  esp_err_t err = startDevWifi();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "WiFi Dev Mode AP init failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "WiFi Dev Mode WiFi init failed: %s", esp_err_to_name(err));
     return err;
   }
 
@@ -437,6 +495,7 @@ esp_err_t initializeDevMode() {
   ESP_LOGI(TAG, "WiFi Dev Mode OTA endpoint ready at http://192.168.4.1/ota");
   ESP_LOGI(TAG, "WiFi Dev Mode logs endpoint ready at http://192.168.4.1/logs");
   ESP_LOGI(TAG, "WiFi Dev Mode AP SSID=%s password=%s", DEV_AP_SSID, DEV_AP_PASSWORD);
+  ESP_LOGI(TAG, "WiFi Dev Mode STA connecting to SSID=%s", DEV_STA_SSID);
   addDiagnosticLog("I", TAG, "WiFi Dev Mode endpoints ready");
   return ESP_OK;
 #else

@@ -66,11 +66,23 @@ uint8_t activeSlotCount(const SynthAudioState& state) {
   return count;
 }
 
+bool hasUiNoteIndex(uint8_t noteIndex) {
+  return noteIndex < 32;
+}
+
 void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
   if (state == nullptr) return;
 
-  const uint32_t bit = 1UL << noteIndex;
-  if ((state->pressedMask & bit) != 0 || state->activeCount >= MAX_POLYPHONY) return;
+  if (hasUiNoteIndex(noteIndex)) {
+    const uint32_t bit = 1UL << noteIndex;
+    if ((state->pressedMask & bit) != 0) return;
+  } else {
+    for (const auto& note : state->notes) {
+      if (note.active && note.noteIndex == noteIndex && note.midi == midi) return;
+    }
+  }
+
+  if (state->activeCount >= MAX_POLYPHONY) return;
 
   for (auto& note : state->notes) {
     if (note.active) continue;
@@ -81,19 +93,25 @@ void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
     note.frequency = midiFrequency(midi);
     note.phase = 0.0f;
     note.phaseIncrement = note.frequency / static_cast<float>(SAMPLE_RATE);
-    state->pressedMask |= bit;
+    if (hasUiNoteIndex(noteIndex)) {
+      state->pressedMask |= 1UL << noteIndex;
+    }
     state->activeCount = activeSlotCount(*state);
     return;
   }
 }
 
-void noteOff(SynthAudioState* state, uint8_t noteIndex) {
+void noteOff(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
   if (state == nullptr) return;
 
-  const uint32_t bit = 1UL << noteIndex;
-  state->pressedMask &= ~bit;
+  if (hasUiNoteIndex(noteIndex)) {
+    state->pressedMask &= ~(1UL << noteIndex);
+  }
+
   for (auto& note : state->notes) {
-    if (note.active && note.noteIndex == noteIndex) {
+    const bool matchesUiNote = hasUiNoteIndex(noteIndex) && note.noteIndex == noteIndex;
+    const bool matchesExternalNote = !hasUiNoteIndex(noteIndex) && note.noteIndex == noteIndex && note.midi == midi;
+    if (note.active && (matchesUiNote || matchesExternalNote)) {
       note = {};
     }
   }
@@ -108,7 +126,7 @@ void applySynthEvent(SynthAudioState* state, const SynthEvent& event) {
       noteOn(state, event.noteIndex, event.midi);
       break;
     case SynthEventType::NoteOff:
-      noteOff(state, event.noteIndex);
+      noteOff(state, event.noteIndex, event.midi);
       break;
     case SynthEventType::SetWaveform:
       state->waveform = event.waveform;

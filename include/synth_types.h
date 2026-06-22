@@ -6,6 +6,8 @@
 
 namespace pocketsynth {
 
+inline constexpr uint8_t SYNTH_NO_UI_NOTE_INDEX = 0xFF;
+
 enum class Waveform : uint8_t {
   Sine,
   Square,
