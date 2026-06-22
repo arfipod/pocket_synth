@@ -1,133 +1,372 @@
-# WiFi Dev Mode OTA
+# WiFi Dev Mode and OTA
 
-WiFi OTA is only available in the forced Dev Mode build:
+This document describes the current development infrastructure for updating and
+diagnosing `pocketsynth` without relying on the USB serial link.
+
+This is especially important when the Cardputer ADV USB-C port is used as USB
+Host for a powered hub and a Komplete M32 MIDI keyboard.
+
+## Purpose
+
+WiFi Dev Mode exists to support:
+
+- local OTA firmware upload;
+- bounded diagnostic logs;
+- runtime status inspection;
+- USB Host and USB MIDI diagnostics while the USB-C port is occupied.
+
+It is not a musical feature and must remain optional.
+
+## Build Environments
+
+Normal serial-oriented build:
+
+```powershell
+pio run -e cardputer_adv
+```
+
+OTA-capable build using the 8 MB OTA partition layout:
+
+```powershell
+pio run -e cardputer_adv_ota
+```
+
+Forced WiFi Dev Mode build:
+
+```powershell
+pio run -e cardputer_adv_wifi_dev
+```
+
+Upload the first WiFi Dev Mode firmware by serial:
 
 ```powershell
 pio run -e cardputer_adv_wifi_dev -t upload
 ```
 
-The normal `cardputer_adv` build does not start WiFi and does not expose `/ota`,
-`/status`, or `/logs`.
+After that, firmware can be uploaded over WiFi using OTA, as long as the current
+firmware still boots and Dev Mode is reachable.
 
-The Dev Mode build starts both:
+## Hardware Setups
 
-- a local AP, `pocketsynth-dev`, at `192.168.4.1`;
-- a station connection using `include/wifi_credentials.h`. When
-  `WIFI_SSID2/WIFI_PASSWORD_2` are present, that 2.4 GHz network is preferred
-  for Cardputer ADV router-based OTA tests.
+### Initial Flash or Recovery
 
-## Upload
+```text
+PC <-> USB-C <-> Cardputer ADV
+```
 
-Build the firmware image you want to send, then either connect the PC to the
-`pocketsynth-dev` WiFi network or use the device IP assigned by the router.
-For the local AP path, run:
+Use this when:
+
+- flashing Dev Mode for the first time;
+- changing partition tables;
+- recovering from a bad OTA image;
+- the device is no longer reachable over WiFi.
+
+### WiFi OTA Development
+
+```text
+PC and Cardputer ADV on the same WiFi
+or
+PC connected to the Cardputer AP `pocketsynth-dev`
+```
+
+Use this for:
+
+- `/status`
+- `/logs`
+- `/ota`
+
+### USB MIDI Development
+
+```text
+Cardputer ADV USB-C -> powered USB-C hub with PD
+Hub PD input -> charger or power bank
+Hub USB port -> Komplete M32
+PC and Cardputer ADV -> same WiFi or Cardputer AP
+Optional: Cardputer audio out -> Focusrite -> PC
+```
+
+Use this when testing USB Host or USB MIDI. In this setup the USB-C port is used
+for host mode, so serial monitor should not be assumed available.
+
+## Flash and Partition Layout
+
+The Cardputer ADV target has 8 MB flash.
+
+The OTA partition table is:
+
+```csv
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+otadata,  data, ota,     0xf000,   0x2000,
+phy_init, data, phy,     0x11000,  0x1000,
+ota_0,    app,  ota_0,   0x20000,  0x300000,
+ota_1,    app,  ota_1,   0x320000, 0x300000,
+storage,  data, spiffs,  0x620000, 0x1E0000,
+```
+
+Each OTA app slot is 3 MB.
+
+OTA updates must only write application slots. Do not use OTA to update the
+bootloader or partition table.
+
+If the partition table changes, use serial flashing.
+
+## Dev Mode Activation
+
+The current forced Dev Mode build uses these compile-time flags:
+
+```text
+POCKETSYNTH_ENABLE_WIFI_DEV_MODE=1
+POCKETSYNTH_FORCE_DEV_MODE=1
+```
+
+The normal build must not start WiFi.
+
+Future improvement: replace forced activation with a physical boot gesture such
+as `Fn + Esc`, or use a persistent development flag stored in NVS.
+
+## Network Modes
+
+Dev Mode should support two paths:
+
+### AP Mode
+
+The Cardputer starts a local AP:
+
+```text
+SSID: pocketsynth-dev
+Password: pocketsynth
+Default IP: 192.168.4.1
+```
+
+This path is useful when the device is not configured for the router WiFi.
+
+### Station Mode
+
+The Cardputer may also connect to a 2.4 GHz router network.
+
+Current local-secret approach:
+
+```text
+include/wifi_credentials.h
+```
+
+This file must remain untracked and ignored by Git.
+
+The firmware should compile even when this file is absent. If local credentials
+are missing, AP-only Dev Mode should still work.
+
+Recommended future behavior:
+
+1. Use NVS-stored credentials when available.
+2. Use a local non-tracked fallback header only for development.
+3. Provide a Dev Mode-only setup endpoint to save/reset WiFi credentials.
+4. Never commit real SSID or password.
+
+## Suggested Local Credentials Header
+
+Create this file locally only:
+
+```text
+include/wifi_credentials.h
+```
+
+Example:
+
+```cpp
+#pragma once
+
+#define WIFI_SSID "Your2GHzNetwork"
+#define WIFI_PASSWORD "YourPassword"
+
+// Optional preferred second network
+#define WIFI_SSID2 "YourPreferred2GHzNetwork"
+#define WIFI_PASSWORD_2 "YourPreferredPassword"
+```
+
+Do not commit this file.
+
+## HTTP Endpoints
+
+### GET /status
+
+Example:
 
 ```powershell
-pio run -e cardputer_adv_ota
+curl http://192.168.4.1/status
+```
+
+Expected purpose:
+
+- firmware metadata;
+- flash size;
+- heap;
+- active partition;
+- OTA state;
+- boot diagnostics;
+- audio initialization results;
+- USB feature flags.
+
+The status endpoint should stay small and stable. Large USB descriptor dumps
+should use a separate endpoint or `/logs`.
+
+### GET /logs
+
+Example:
+
+```powershell
+curl http://192.168.4.1/logs
+```
+
+or:
+
+```powershell
+python tools/pocketsynth_logs.py --host 192.168.4.1
+```
+
+Expected purpose:
+
+- bounded diagnostic ring buffer;
+- boot diagnostics;
+- WiFi Dev Mode state;
+- USB Host connection events;
+- USB MIDI packet summaries.
+
+This is not a full serial mirror.
+
+Do not log from the audio render path.
+
+### POST /ota
+
+Example:
+
+```powershell
 python tools/ota_upload.py --host 192.168.4.1 --bin .pio/build/cardputer_adv_ota/firmware.bin
 ```
 
-Use `.pio/build/cardputer_adv_wifi_dev/firmware.bin` instead when the updated
-app should keep WiFi Dev Mode available. Do not use the plain `cardputer_adv`
-image for OTA rollback testing because it is the serial/single-app build.
-
-For router-based OTA, replace `192.168.4.1` with the station IP shown in
-`/status`, `/logs`, serial logs, or the router client list.
-
-The endpoint accepts a raw `firmware.bin` body at `POST /ota`. It requires the
-placeholder header `X-PocketSynth-Token: pocketsynth-dev`; the upload tool sends
-that token by default.
-
-OTA writes only the inactive app partition. It does not update the bootloader or
-partition table. If receiving, writing, image validation, or boot partition
-selection fails, the firmware returns an error and keeps the current boot
-partition.
-
-After a successful upload the device responds `ota ok; rebooting` and restarts.
-On first boot after OTA, the app runs a fast self-test and marks itself valid
-only after the core runtime checks pass. WiFi and MIDI are not required for app
-validity.
-
-The self-test requires app state/event queue initialization and task allocation
-viability. I2C and I2S initialization are attempted and logged, but peripheral
-failures are treated as diagnostics rather than rollback triggers. Display init
-is left to the UI task because it owns the display device.
-
-## WiFi Diagnostics
-
-Dev Mode exposes:
+The OTA upload tool sends the placeholder header:
 
 ```text
-GET /status
-GET /logs
+X-PocketSynth-Token: pocketsynth-dev
 ```
 
-`/status` returns firmware version, flash size, free heap, active partition,
-OTA state, boot/audio initialization results, and lightweight USB feature flags.
-The response intentionally avoids large USB diagnostic snapshots so the HTTP
-server remains stable while USB host and MIDI tasks are active.
+Current security is development-only. Do not expose the endpoint outside a trusted
+local network.
 
-`/logs` returns a bounded in-memory diagnostic ring buffer. It is not a full
-serial log mirror and intentionally does not log from the audio render path. USB
-Host and USB MIDI diagnostics, including connection state, VID/PID, endpoints,
-and raw MIDI packets, are reported here.
+## OTA Flow
 
-## Manual Checklist
-
-1. Serial flash the OTA-capable Dev Mode image:
-
-   ```powershell
-   pio run -e cardputer_adv_wifi_dev -t upload
-   ```
-
-2. Confirm serial boot logs show Dev Mode active and `/ota` ready.
-3. Connect to SSID `pocketsynth-dev` with password `pocketsynth`, or keep the
-   PC on the same router network as the configured station credentials.
-4. Confirm status:
-
-   ```powershell
-   curl http://192.168.4.1/status
-   ```
-
-   Or use:
-
-   ```powershell
-   python tools/pocketsynth_status.py --host 192.168.4.1
-   python tools/pocketsynth_logs.py --host 192.168.4.1
-   ```
-
-5. Build and upload a rollback-capable firmware image:
+1. Build an OTA-capable image:
 
    ```powershell
    pio run -e cardputer_adv_ota
+   ```
+
+2. Upload over WiFi:
+
+   ```powershell
    python tools/ota_upload.py --host 192.168.4.1 --bin .pio/build/cardputer_adv_ota/firmware.bin
    ```
 
-6. Confirm the tool prints `HTTP 200: ota ok; rebooting`.
-7. Watch serial logs for reboot, boot self-test, and `OTA app marked valid`.
-8. For a failure test, send a non-firmware file and confirm the device does not
-   switch boot partitions.
+3. Device receives the image.
+4. Device writes the inactive OTA app slot.
+5. Device validates the image.
+6. Device sets the inactive slot as the next boot partition.
+7. Device responds with success.
+8. Device reboots.
+9. New app performs boot validation.
+10. New app marks itself valid if rollback support is enabled and validation passes.
+
+## Uploading a Dev Mode Image
+
+Use this when the updated firmware must keep WiFi Dev Mode available:
+
+```powershell
+pio run -e cardputer_adv_wifi_dev
+python tools/ota_upload.py --host 192.168.4.1 --bin .pio/build/cardputer_adv_wifi_dev/firmware.bin
+```
+
+Use this carefully. A broken Dev Mode image may require serial recovery.
+
+## Rollback
+
+Rollback should be enabled for OTA builds.
+
+The boot validation flow should be:
+
+1. Detect whether the running app is pending OTA verification.
+2. Initialize core app state and queues.
+3. Run critical lightweight diagnostics.
+4. Mark the app valid if diagnostics pass.
+5. Mark app invalid and request rollback if diagnostics fail.
+
+Required checks:
+
+- app state/event queue initialized;
+- task allocation viability;
+- no immediate fatal boot failure.
+
+Diagnostic-only checks:
+
+- I2C initialization result;
+- I2S initialization result;
+- codec initialization result.
+
+Do not require the following for app validity:
+
+- WiFi connection success;
+- Komplete M32 connected;
+- USB MIDI device present;
+- router reachable.
 
 ## Manual Rollback Test
 
-For a deliberate rollback test, build an OTA-capable image with:
+Create or use a temporary build flag:
 
 ```ini
 -DPOCKETSYNTH_FORCE_BOOT_SELF_TEST_FAIL=1
 ```
 
-Upload that image from Dev Mode. The first boot should log the forced self-test
-failure, call ESP-IDF rollback, reboot, and return to the previous valid app.
+Then:
 
-## Serial Recovery
+1. Build OTA-capable failing image.
+2. Upload it from a known-good Dev Mode firmware.
+3. Confirm the new image boots, fails self-test, requests rollback, and reboots.
+4. Confirm the previous valid image runs again.
 
-Keep USB serial flashing as the recovery path. Use serial whenever the partition
-table changes, the OTA image cannot boot, or the device is no longer reachable
-over WiFi:
+Do not keep the forced-failure flag in normal builds.
+
+## Recovery
+
+Use serial recovery when:
+
+- OTA image cannot boot;
+- WiFi is unreachable;
+- `/ota` is not available;
+- partition table changed;
+- bootloader or flash config changed;
+- USB Host experiments break the dev image.
+
+Recovery command:
 
 ```powershell
 pio run -e cardputer_adv_ota -t upload
 ```
 
-If needed, hold the Cardputer ADV boot button while resetting or plugging in,
-then flash again from PlatformIO.
+or:
+
+```powershell
+pio run -e cardputer_adv_wifi_dev -t upload
+```
+
+If needed, hold the Cardputer ADV boot button while resetting or plugging in.
+
+## Known Gaps
+
+The following items should be closed:
+
+- Dev Mode should compile when `include/wifi_credentials.h` is missing.
+- WiFi credentials should be stored in NVS or provisioned.
+- Rollback config must be confirmed as enabled in the build.
+- `/status` should not become a large JSON dump.
+- OTA token is currently a development placeholder.
+- WiFi password must never be logged.
