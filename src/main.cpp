@@ -6,6 +6,7 @@
 #include "pocketsynth_tasks.h"
 #include "synth_config.h"
 #include "usb_host_diag.h"
+#include "usb_midi_host.h"
 
 #include "esp_err.h"
 #include "esp_flash.h"
@@ -57,6 +58,13 @@ extern "C" void app_main(void) {
                    TAG,
                    "USB Host diagnostics build=%s",
                    isUsbHostDiagnosticsBuildEnabled() ? "yes" : "no");
+  ESP_LOGI(TAG,
+           "USB MIDI host build=%s",
+           isUsbMidiHostBuildEnabled() ? "yes" : "no");
+  addDiagnosticLog("I",
+                   TAG,
+                   "USB MIDI host build=%s",
+                   isUsbMidiHostBuildEnabled() ? "yes" : "no");
 
   BootValidationResult bootValidation = runBootValidation();
   if (!bootValidation.coreSelfTestPassed) {
@@ -79,6 +87,14 @@ extern "C" void app_main(void) {
     if (usbDiagErr != ESP_OK) {
       ESP_LOGE(TAG, "USB Host diagnostics init failed: %s", esp_err_to_name(usbDiagErr));
       addDiagnosticLog("E", TAG, "USB Host diagnostics init failed: %s", esp_err_to_name(usbDiagErr));
+    }
+  }
+
+  if (isUsbMidiHostBuildEnabled()) {
+    esp_err_t usbMidiErr = initializeUsbMidiHost();
+    if (usbMidiErr != ESP_OK) {
+      ESP_LOGE(TAG, "USB MIDI host init failed: %s", esp_err_to_name(usbMidiErr));
+      addDiagnosticLog("E", TAG, "USB MIDI host init failed: %s", esp_err_to_name(usbMidiErr));
     }
   }
 

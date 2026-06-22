@@ -52,9 +52,9 @@ GET /logs
 ```
 
 `/status` returns firmware version, flash size, free heap, active partition,
-OTA state, boot/audio initialization results, a USB MIDI non-parsing marker,
-and USB Host diagnostics when the Dev Mode diagnostics build flag is enabled.
-USB Host diagnostics report connection state, VID/PID, device class triplet,
+OTA state, boot/audio initialization results, USB MIDI raw-reader state, and
+USB Host diagnostics when the Dev Mode diagnostics build flag is enabled. USB
+Host diagnostics report connection state, VID/PID, device class triplet,
 configurations, interfaces, and endpoints without emitting synth events.
 
 `/logs` returns a bounded in-memory diagnostic ring buffer. It is not a full

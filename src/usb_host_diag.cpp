@@ -2,6 +2,7 @@
 
 #include "boot_diagnostics.h"
 #include "synth_config.h"
+#include "usb_host_runtime.h"
 
 #include "esp_err.h"
 #include "esp_log.h"
@@ -20,8 +21,6 @@
 #endif
 
 #if POCKETSYNTH_ENABLE_USB_HOST_DIAG
-#include "esp_bit_defs.h"
-#include "esp_idf_version.h"
 #include "sdkconfig.h"
 #include "usb/usb_host.h"
 #endif
@@ -118,7 +117,6 @@ portMUX_TYPE gUsbDiagMux = portMUX_INITIALIZER_UNLOCKED;
 UsbDiagSnapshot gSnapshot = {};
 #if POCKETSYNTH_ENABLE_USB_HOST_DIAG
 bool gInitAttempted = false;
-esp_err_t gHostInstallResult = ESP_ERR_INVALID_STATE;
 #endif
 
 void copyString(char* out, size_t outSize, const char* in) {
@@ -845,55 +843,6 @@ void usbHostClientTask(void*) {
   }
 }
 
-void usbHostDaemonTask(void* notifyTaskHandle) {
-  ESP_LOGI(TAG, "Installing USB Host diagnostics library");
-
-  usb_host_config_t hostConfig = {};
-  hostConfig.skip_phy_setup = false;
-  hostConfig.intr_flags = ESP_INTR_FLAG_LOWMED;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  hostConfig.peripheral_map = BIT0;
-#endif
-
-  const esp_err_t err = usb_host_install(&hostConfig);
-  gHostInstallResult = err;
-  portENTER_CRITICAL(&gUsbDiagMux);
-  gSnapshot.hostInstalled = err == ESP_OK;
-  setLastEvent(err == ESP_OK ? "host_ready" : "host_error", err);
-  portEXIT_CRITICAL(&gUsbDiagMux);
-
-  if (notifyTaskHandle != nullptr) {
-    xTaskNotifyGive(static_cast<TaskHandle_t>(notifyTaskHandle));
-  }
-
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "USB Host install failed: %s", esp_err_to_name(err));
-    addDiagnosticLog("E", TAG, "USB Host install failed: %s", esp_err_to_name(err));
-    vTaskDelete(nullptr);
-    return;
-  }
-
-  ESP_LOGI(TAG, "USB Host diagnostics library ready");
-  addDiagnosticLog("I", TAG, "USB Host diagnostics library ready");
-
-  for (;;) {
-    uint32_t eventFlags = 0;
-    const esp_err_t handleErr = usb_host_lib_handle_events(portMAX_DELAY, &eventFlags);
-    if (handleErr != ESP_OK) {
-      ESP_LOGW(TAG, "USB Host library event handling failed: %s", esp_err_to_name(handleErr));
-      portENTER_CRITICAL(&gUsbDiagMux);
-      setLastEvent("host_error", handleErr);
-      portEXIT_CRITICAL(&gUsbDiagMux);
-      vTaskDelay(pdMS_TO_TICKS(250));
-      continue;
-    }
-
-    if ((eventFlags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS) != 0) {
-      ESP_LOGW(TAG, "USB Host diagnostics has no registered clients");
-      addDiagnosticLog("W", TAG, "USB Host diagnostics has no clients");
-    }
-  }
-}
 #endif
 
 void initializeSnapshotDefaults() {
@@ -934,39 +883,22 @@ esp_err_t initializeUsbHostDiagnostics() {
   setLastEvent("starting", ESP_OK);
   portEXIT_CRITICAL(&gUsbDiagMux);
 
-  TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
-  BaseType_t created = xTaskCreatePinnedToCore(usbHostDaemonTask,
-                                               "UsbHostDaemon",
-                                               USB_HOST_DAEMON_TASK_STACK,
-                                               currentTask,
-                                               USB_HOST_DAEMON_TASK_PRIORITY,
+  const esp_err_t hostErr = initializeUsbHostRuntime();
+  portENTER_CRITICAL(&gUsbDiagMux);
+  gSnapshot.hostInstalled = hostErr == ESP_OK;
+  setLastEvent(hostErr == ESP_OK ? "host_ready" : "host_error", hostErr);
+  portEXIT_CRITICAL(&gUsbDiagMux);
+  if (hostErr != ESP_OK) {
+    return hostErr;
+  }
+
+  BaseType_t created = xTaskCreatePinnedToCore(usbHostClientTask,
+                                               "UsbHostDiag",
+                                               USB_HOST_CLIENT_TASK_STACK,
+                                               nullptr,
+                                               USB_HOST_CLIENT_TASK_PRIORITY,
                                                nullptr,
                                                0);
-  if (created != pdTRUE) {
-    portENTER_CRITICAL(&gUsbDiagMux);
-    setLastEvent("host_error", ESP_ERR_NO_MEM);
-    portEXIT_CRITICAL(&gUsbDiagMux);
-    return ESP_ERR_NO_MEM;
-  }
-
-  const uint32_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1500));
-  if (notified == 0) {
-    portENTER_CRITICAL(&gUsbDiagMux);
-    setLastEvent("host_timeout", ESP_ERR_TIMEOUT);
-    portEXIT_CRITICAL(&gUsbDiagMux);
-    return ESP_ERR_TIMEOUT;
-  }
-  if (gHostInstallResult != ESP_OK) {
-    return gHostInstallResult;
-  }
-
-  created = xTaskCreatePinnedToCore(usbHostClientTask,
-                                    "UsbHostDiag",
-                                    USB_HOST_CLIENT_TASK_STACK,
-                                    nullptr,
-                                    USB_HOST_CLIENT_TASK_PRIORITY,
-                                    nullptr,
-                                    0);
   if (created != pdTRUE) {
     portENTER_CRITICAL(&gUsbDiagMux);
     setLastEvent("client_error", ESP_ERR_NO_MEM);

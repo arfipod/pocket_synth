@@ -7,6 +7,7 @@
 
 #include "boot_diagnostics.h"
 #include "usb_host_diag.h"
+#include "usb_midi_host.h"
 
 #include "esp_app_format.h"
 #include "esp_flash.h"
@@ -36,10 +37,12 @@ constexpr size_t OTA_RECV_BUFFER_SIZE = 1024;
 constexpr TickType_t OTA_REBOOT_DELAY = pdMS_TO_TICKS(800);
 constexpr size_t STATUS_RESPONSE_SIZE = 12288;
 constexpr size_t USB_STATUS_RESPONSE_SIZE = 8192;
+constexpr size_t USB_MIDI_STATUS_RESPONSE_SIZE = 2048;
 constexpr size_t LOG_RESPONSE_SIZE = 2048;
 
 char gStatusResponse[STATUS_RESPONSE_SIZE] = {};
 char gUsbStatusResponse[USB_STATUS_RESPONSE_SIZE] = {};
+char gUsbMidiStatusResponse[USB_MIDI_STATUS_RESPONSE_SIZE] = {};
 
 const char* otaStateToString(esp_err_t stateErr, esp_ota_img_states_t state);
 
@@ -66,6 +69,7 @@ esp_err_t statusHandler(httpd_req_t* req) {
   copyBootDiagnostics(&diagnostics);
 
   writeUsbHostDiagnosticsJson(gUsbStatusResponse, sizeof(gUsbStatusResponse));
+  writeUsbMidiHostStatusJson(gUsbMidiStatusResponse, sizeof(gUsbMidiStatusResponse));
 
   char* response = gStatusResponse;
   response[0] = '\0';
@@ -90,7 +94,7 @@ esp_err_t statusHandler(httpd_req_t* req) {
       "\"i2s\":\"%s\","
       "\"codec\":\"%s\""
       "},"
-      "\"usb_midi\":{\"status\":\"not_parsing\"},"
+      "\"usb_midi\":%s,"
       "\"usb_host_diag\":%s"
       "}\n",
       appDescription != nullptr ? appDescription->project_name : "unknown",
@@ -108,6 +112,7 @@ esp_err_t statusHandler(httpd_req_t* req) {
       esp_err_to_name(diagnostics.i2cResult),
       esp_err_to_name(diagnostics.i2sResult),
       esp_err_to_name(diagnostics.codecResult),
+      gUsbMidiStatusResponse,
       gUsbStatusResponse);
 
   if (written <= 0 || written >= static_cast<int>(STATUS_RESPONSE_SIZE)) {
