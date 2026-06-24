@@ -75,6 +75,8 @@ esp_err_t statusHandler(httpd_req_t* req) {
 
   char m32OledStatus[2048] = {};
   writeM32OledStatusJson(m32OledStatus, sizeof(m32OledStatus));
+  char usbMidiStatus[2048] = {};
+  writeUsbMidiHostStatusJson(usbMidiStatus, sizeof(usbMidiStatus));
 
   char* response = gStatusResponse;
   response[0] = '\0';
@@ -102,6 +104,7 @@ esp_err_t statusHandler(httpd_req_t* req) {
       "\"usb_midi_enabled\":%s,"
       "\"usb_host_diag_enabled\":%s,"
       "\"m32_oled_enabled\":%s,"
+      "\"usb_midi\":%s,"
       "\"m32_oled\":%s"
       "}\n",
       appDescription != nullptr ? appDescription->project_name : "unknown",
@@ -122,6 +125,7 @@ esp_err_t statusHandler(httpd_req_t* req) {
       isUsbMidiHostBuildEnabled() ? "true" : "false",
       isUsbHostDiagnosticsBuildEnabled() ? "true" : "false",
       isM32OledBuildEnabled() ? "true" : "false",
+      usbMidiStatus,
       m32OledStatus);
 
   if (written <= 0 || written >= static_cast<int>(STATUS_RESPONSE_SIZE)) {

@@ -428,13 +428,23 @@ Expected `/status`:
 - `m32_oled.device_connected` is true;
 - `m32_oled.endpoint_address` is `0x01`;
 - `m32_oled.frame_count` increases after splash and input feedback;
+- with the ownership heartbeat enabled, `m32_oled.frame_count` continues to
+  increase while the M32 remains connected;
 - `m32_oled.feedback_count` increases after key, knob, CC, or pitch activity;
-- `m32_oled.transfer_active` eventually returns to false after input stops.
+- `usb_midi.hid_in_endpoint_allocated` is reported explicitly. On current
+  SETUP D hardware it is expected to be false because direct HID IN `0x81`
+  returns `ESP_ERR_NOT_SUPPORTED` when MIDI IN and OLED OUT are active.
 
 Pass criteria:
 
 - splash appears on the M32 OLED;
 - knob/CC feedback appears on the M32 OLED;
+- after pressing or moving knobs, the built-in `Template 1` / `CC ##` screen may
+  flash briefly, but the PocketSynth ownership heartbeat should repaint and keep
+  the PocketSynth UI visible;
+- note this as a known limitation, not as final desired behavior. Future work
+  should remove the brief `Template 1` flash entirely if a reliable host/takeover
+  command or HID coexistence path is found;
 - key press/release feedback appears on the M32 OLED;
 - MIDI packets still arrive while OLED frames are sent;
 - no audio task logging or blocking is introduced.
@@ -446,6 +456,15 @@ frame_count=23
 transfer_count=46
 feedback_count=37
 transfer_active=false
+```
+
+Validated on 2026-06-25 with SETUP D over WiFi at `192.168.31.147`:
+
+```text
+frame_count=94
+transfer_count=190
+usb_midi.hid_in_endpoint_allocated=false
+usb_midi.hid_in_report_count=0
 ```
 
 ## 10. MIDI Parser Validation
@@ -554,12 +573,16 @@ Expected:
 
 - CC64 >= 64 enables sustain;
 - CC64 < 64 disables sustain;
+- if `POCKETSYNTH_INVERT_SUSTAIN_PEDAL=1` is enabled, the expected polarity is
+  reversed: CC64 >= 64 disables sustain and CC64 < 64 enables sustain;
 - released notes are held only while sustain is on;
 - turning sustain off clears released notes.
 
 Pass criteria:
 
 - sustain works;
+- the observed pedal polarity matches the build flag. The current
+  `cardputer_adv_wifi_dev` M32 test build enables inverted sustain polarity;
 - no stuck notes;
 - active count returns to zero after release and sustain off.
 

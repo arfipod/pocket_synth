@@ -12,6 +12,12 @@ inline constexpr int M32_OLED_WIDTH = 128;
 inline constexpr int M32_OLED_HEIGHT = 32;
 inline constexpr size_t M32_OLED_FRAMEBUFFER_BYTES =
     static_cast<size_t>(M32_OLED_WIDTH * M32_OLED_HEIGHT / 8);
+inline constexpr size_t M32_HID_MAX_OUTPUT_REPORT_BYTES = 265;
+
+struct M32HidOutputReport {
+  uint16_t length;
+  uint8_t bytes[M32_HID_MAX_OUTPUT_REPORT_BYTES];
+};
 
 struct M32OledStatus {
   bool enabled;
@@ -88,10 +94,15 @@ esp_err_t sendM32OledParameter(const char* name,
                                const char* value,
                                float normalizedValue,
                                TickType_t timeoutTicks = 0);
+esp_err_t sendM32HidOutputReport(const uint8_t* report,
+                                 size_t reportLength,
+                                 TickType_t timeoutTicks = 0);
 void notifyM32OledMidiNote(uint8_t midi, bool pressed, uint8_t velocity);
 void notifyM32OledControlChange(uint8_t control, uint8_t value);
 void notifyM32OledPitchBend(int16_t pitchBend);
+void notifyM32OledSurfaceActivity(uint8_t control, uint8_t value, bool active);
 bool takeNextM32OledFrame(M32OledFramebuffer* frame);
+bool takeNextM32HidOutputReport(M32HidOutputReport* report);
 esp_err_t writeM32OledRegionReport(uint8_t* out,
                                    size_t outSize,
                                    const M32OledFramebuffer& frame,

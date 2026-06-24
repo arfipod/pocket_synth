@@ -71,6 +71,11 @@ bool hasUiNoteIndex(uint8_t noteIndex) {
   return noteIndex < 32;
 }
 
+bool sustainPedalActiveFromCc(uint8_t value) {
+  const bool active = value >= 64;
+  return INVERT_SUSTAIN_PEDAL ? !active : active;
+}
+
 void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi, uint8_t velocity) {
   if (state == nullptr) return;
 
@@ -146,7 +151,7 @@ void applySynthEvent(SynthAudioState* state, const SynthEvent& event) {
         state->cc[event.control] = event.controlValue;
       }
       if (event.control == 64) {
-        state->sustainPedal = (event.controlValue >= 64);
+        state->sustainPedal = sustainPedalActiveFromCc(event.controlValue);
         if (!state->sustainPedal) {
           for (auto& note : state->notes) {
             if (note.active && note.keyReleased) {

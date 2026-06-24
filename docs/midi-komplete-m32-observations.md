@@ -119,3 +119,62 @@ transfer_active=false
 
 This confirms MIDI input and OLED feedback can run together when firmware
 allocates only the HID OUT endpoint needed for OLED writes.
+
+## OLED Ownership Race
+
+Date: 2026-06-24
+
+When M32 knobs are pressed or moved in normal MIDI template mode, the keyboard's
+own firmware can redraw the OLED with its built-in `Template 1` / `CC ##` view.
+PocketSynth bitmap reports still work, but they compete with that internal UI.
+
+No captured command has been identified yet that permanently disables the M32's
+internal MIDI-template display owner. The current firmware therefore treats the
+OLED as an eventually-owned display: after each Note, CC, or Pitch Bend feedback
+event it sends the PocketSynth frame immediately, then repeats the same frame
+three more times at 45 ms intervals. This short forced repaint window restores
+the PocketSynth UI after the M32 has drawn its built-in screen, while staying
+bounded and outside the real-time audio path.
+
+Follow-up analysis of `tools/CaptureKomplete.pcapng` found no non-bitmap command
+that disables the built-in template owner. The PC-side host appears to avoid the
+problem by reading M32 HID IN endpoint `0x81` and sending its own OLED/LED
+updates on HID OUT endpoint `0x01` whenever controls change.
+
+The capture's non-OLED HID OUT traffic is report `0x80`, length 22. It appears
+to drive control button lights/states. Baseline report:
+
+```text
+80 7c 7c 7c 00 00 00 00 00 00 00 00 00 7c 7c 00 7c 7c 7e 00 7c 7c
+```
+
+Observed button-to-output correlations:
+
+```text
+HID IN byte 1 bit 0x02 -> OUT 0x80 byte 2
+HID IN byte 1 bit 0x04 -> OUT 0x80 byte 3
+HID IN byte 2 bit 0x10 -> OUT 0x80 byte 13
+HID IN byte 2 bit 0x20 -> OUT 0x80 byte 14
+HID IN byte 2 bit 0x40 -> OUT 0x80 byte 15
+HID IN byte 2 bit 0x80 -> OUT 0x80 byte 16
+HID IN byte 3 bit 0x10 -> OUT 0x80 byte 21
+```
+
+On SETUP D with the Cardputer ADV, direct allocation of HID IN `0x81` alongside
+MIDI IN `0x82` and OLED OUT `0x01` returned `ESP_ERR_NOT_SUPPORTED`, even with
+the USB host hardware buffer bias set to `BALANCED`. Direct OLED OUT continued
+to work. The firmware now reports this in `GET /status` under
+`usb_midi.hid_in_endpoint_allocated`.
+
+Because HID IN cannot currently be used on the Cardputer setup, the firmware
+adds an OLED ownership heartbeat: the latest PocketSynth frame is resent roughly
+every 80 ms while the M32 is connected. On 2026-06-25, `/status` showed
+`frame_count=94` and `transfer_count=190` about 9.4 seconds after boot, proving
+the heartbeat was actively repainting over the M32's built-in UI.
+
+Important remaining limitation: the built-in `Template 1` / `CC ##` screen can
+still appear briefly before the PocketSynth heartbeat repaints the OLED. This is
+acceptable for the current experimental firmware, but it is not the desired
+final behavior. Future work should aim to identify a real Native Instruments
+host/takeover command, a valid HID IN coexistence strategy, or another protocol
+path that prevents the built-in template screen from being drawn at all.

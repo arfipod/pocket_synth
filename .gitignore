@@ -25,6 +25,8 @@ Desktop.ini
 # Logs and crash dumps
 *.log
 *.dmp
+*.pcapng
+tools/*.zip
 
 # Local environment and secrets
 .env

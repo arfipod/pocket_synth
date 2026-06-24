@@ -47,7 +47,11 @@ constexpr uint16_t M32_OLED_REGION_HEIGHT_PAGES = 2;
 constexpr size_t M32_OLED_REGION_PAYLOAD_BYTES =
     static_cast<size_t>(M32_OLED_REGION_WIDTH * M32_OLED_REGION_HEIGHT_PAGES);
 constexpr uint8_t M32_OLED_QUEUE_DEPTH = 2;
+constexpr uint8_t M32_HID_OUTPUT_REPORT_QUEUE_DEPTH = 2;
 constexpr uint8_t M32_OLED_FEEDBACK_QUEUE_DEPTH = 4;
+constexpr uint8_t M32_OLED_FORCED_REPAINT_COUNT = 3;
+constexpr uint32_t M32_OLED_FORCED_REPAINT_INTERVAL_MS = 45;
+constexpr uint32_t M32_OLED_OWNERSHIP_REPAINT_INTERVAL_MS = 80;
 
 struct M32OledQueuedFrame {
   uint8_t bits[M32_OLED_FRAMEBUFFER_BYTES];
@@ -57,6 +61,7 @@ enum class M32OledFeedbackType : uint8_t {
   Note,
   ControlChange,
   PitchBend,
+  Surface,
 };
 
 struct M32OledFeedbackEvent {
@@ -111,7 +116,10 @@ struct JsonWriter {
 portMUX_TYPE gM32OledMux = portMUX_INITIALIZER_UNLOCKED;
 M32OledStatus gStatus = {};
 bool gOutputInverted = true;
+M32_OLED_MAYBE_UNUSED M32OledQueuedFrame gOwnershipFrame = {};
+M32_OLED_MAYBE_UNUSED bool gHasOwnershipFrame = false;
 M32_OLED_MAYBE_UNUSED QueueHandle_t gFrameQueue = nullptr;
+M32_OLED_MAYBE_UNUSED QueueHandle_t gOutputReportQueue = nullptr;
 M32_OLED_MAYBE_UNUSED QueueHandle_t gFeedbackQueue = nullptr;
 
 #if POCKETSYNTH_ENABLE_M32_OLED
@@ -220,7 +228,7 @@ const char* controlLabel(uint8_t control) {
   }
 }
 
-M32_OLED_MAYBE_UNUSED void drawFeedbackEvent(const M32OledFeedbackEvent& event) {
+M32_OLED_MAYBE_UNUSED void drawFeedbackEvent(const M32OledFeedbackEvent& event, bool publishFeedbackEvent) {
   M32OledFramebuffer frame;
   frame.clear(false);
   frame.drawText(0, 0, "POCKETSYNTH", 1);
@@ -259,12 +267,25 @@ M32_OLED_MAYBE_UNUSED void drawFeedbackEvent(const M32OledFeedbackEvent& event) 
       feedbackName = "pitch_bend";
       break;
     }
+    case M32OledFeedbackType::Surface: {
+      if (event.first == 0xff) {
+        snprintf(line, sizeof(line), "M32 CONTROL");
+      } else {
+        snprintf(line, sizeof(line), "M32 BTN %02u", static_cast<unsigned int>(event.first));
+      }
+      snprintf(value, sizeof(value), event.pressed ? "ON %u" : "OFF %u", static_cast<unsigned int>(event.second));
+      normalized = static_cast<float>(event.second) / 127.0f;
+      feedbackName = "surface";
+      break;
+    }
   }
 
   frame.drawText(0, 10, line, 1);
   frame.drawText(0, 20, value, 1);
   frame.drawBar(70, 22, 56, 8, normalized, true);
-  publishFeedback(feedbackName);
+  if (publishFeedbackEvent) {
+    publishFeedback(feedbackName);
+  }
   (void)sendM32OledFrame(frame, 0);
 }
 
@@ -1044,7 +1065,49 @@ void m32OledFeedbackTask(void*) {
     while (xQueueReceive(gFeedbackQueue, &latest, 0) == pdTRUE) {
       event = latest;
     }
-    drawFeedbackEvent(event);
+    drawFeedbackEvent(event, true);
+
+    for (uint8_t repaint = 0; repaint < M32_OLED_FORCED_REPAINT_COUNT; ++repaint) {
+      if (xQueueReceive(gFeedbackQueue, &event, pdMS_TO_TICKS(M32_OLED_FORCED_REPAINT_INTERVAL_MS)) == pdTRUE) {
+        while (xQueueReceive(gFeedbackQueue, &latest, 0) == pdTRUE) {
+          event = latest;
+        }
+        drawFeedbackEvent(event, true);
+        repaint = 0;
+        continue;
+      }
+
+      drawFeedbackEvent(event, false);
+    }
+  }
+}
+
+void m32OledOwnershipTask(void*) {
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(M32_OLED_OWNERSHIP_REPAINT_INTERVAL_MS));
+    if (gFrameQueue == nullptr) {
+      continue;
+    }
+    if (uxQueueMessagesWaiting(gFrameQueue) > 0) {
+      continue;
+    }
+
+    M32OledQueuedFrame frame = {};
+    bool hasFrame = false;
+    portENTER_CRITICAL(&gM32OledMux);
+    hasFrame = gHasOwnershipFrame;
+    if (hasFrame) {
+      memcpy(frame.bits, gOwnershipFrame.bits, sizeof(frame.bits));
+    }
+    portEXIT_CRITICAL(&gM32OledMux);
+
+    if (!hasFrame) {
+      continue;
+    }
+
+    if (xQueueSend(gFrameQueue, &frame, 0) == pdTRUE) {
+      publishQueueState(true);
+    }
   }
 }
 #endif
@@ -1283,6 +1346,13 @@ esp_err_t initializeM32Oled() {
       return ESP_ERR_NO_MEM;
     }
   }
+  if (gOutputReportQueue == nullptr) {
+    gOutputReportQueue = xQueueCreate(M32_HID_OUTPUT_REPORT_QUEUE_DEPTH, sizeof(M32HidOutputReport));
+    if (gOutputReportQueue == nullptr) {
+      publishError("report_queue_error", ESP_ERR_NO_MEM);
+      return ESP_ERR_NO_MEM;
+    }
+  }
   if (gFeedbackQueue == nullptr) {
     gFeedbackQueue = xQueueCreate(M32_OLED_FEEDBACK_QUEUE_DEPTH, sizeof(M32OledFeedbackEvent));
     if (gFeedbackQueue == nullptr) {
@@ -1303,6 +1373,17 @@ esp_err_t initializeM32Oled() {
     publishError("feedback_task_error", ESP_ERR_NO_MEM);
     return ESP_ERR_NO_MEM;
   }
+  const BaseType_t ownershipCreated = xTaskCreatePinnedToCore(m32OledOwnershipTask,
+                                                              "M32OledOwner",
+                                                              M32_OLED_OWNERSHIP_TASK_STACK,
+                                                              nullptr,
+                                                              M32_OLED_OWNERSHIP_TASK_PRIORITY,
+                                                              nullptr,
+                                                              0);
+  if (ownershipCreated != pdTRUE) {
+    publishError("owner_task_error", ESP_ERR_NO_MEM);
+    return ESP_ERR_NO_MEM;
+  }
   return ESP_OK;
 #else
   return ESP_ERR_NOT_SUPPORTED;
@@ -1317,6 +1398,11 @@ esp_err_t sendM32OledFrame(const M32OledFramebuffer& frame, TickType_t timeoutTi
 
   M32OledQueuedFrame queued = {};
   memcpy(queued.bits, frame.data(), sizeof(queued.bits));
+
+  portENTER_CRITICAL(&gM32OledMux);
+  memcpy(gOwnershipFrame.bits, queued.bits, sizeof(gOwnershipFrame.bits));
+  gHasOwnershipFrame = true;
+  portEXIT_CRITICAL(&gM32OledMux);
 
   BaseType_t sent = xQueueSend(gFrameQueue, &queued, timeoutTicks);
   if (sent != pdTRUE) {
@@ -1358,6 +1444,35 @@ esp_err_t sendM32OledParameter(const char* name,
   frame.drawText(0, 20, value != nullptr ? value : "", 1);
   frame.drawBar(70, 22, 56, 8, normalizedValue, true);
   return sendM32OledFrame(frame, timeoutTicks);
+}
+
+esp_err_t sendM32HidOutputReport(const uint8_t* report, size_t reportLength, TickType_t timeoutTicks) {
+#if POCKETSYNTH_ENABLE_M32_OLED
+  if (gOutputReportQueue == nullptr || report == nullptr ||
+      reportLength == 0 || reportLength > M32_HID_MAX_OUTPUT_REPORT_BYTES) {
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  M32HidOutputReport queued = {};
+  queued.length = static_cast<uint16_t>(reportLength);
+  memcpy(queued.bytes, report, reportLength);
+
+  BaseType_t sent = xQueueSend(gOutputReportQueue, &queued, timeoutTicks);
+  if (sent != pdTRUE) {
+    M32HidOutputReport dropped = {};
+    (void)xQueueReceive(gOutputReportQueue, &dropped, 0);
+    sent = xQueueSend(gOutputReportQueue, &queued, 0);
+  }
+
+  publishQueueState((gFrameQueue != nullptr && uxQueueMessagesWaiting(gFrameQueue) > 0) ||
+                    uxQueueMessagesWaiting(gOutputReportQueue) > 0);
+  return sent == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
+#else
+  (void)report;
+  (void)reportLength;
+  (void)timeoutTicks;
+  return ESP_ERR_NOT_SUPPORTED;
+#endif
 }
 
 void notifyM32OledMidiNote(uint8_t midi, bool pressed, uint8_t velocity) {
@@ -1423,6 +1538,29 @@ void notifyM32OledPitchBend(int16_t pitchBend) {
 #endif
 }
 
+void notifyM32OledSurfaceActivity(uint8_t control, uint8_t value, bool active) {
+#if POCKETSYNTH_ENABLE_M32_OLED
+  if (gFeedbackQueue == nullptr) {
+    return;
+  }
+  M32OledFeedbackEvent event = {};
+  event.type = M32OledFeedbackType::Surface;
+  event.first = control;
+  event.second = value;
+  event.pressed = active;
+  BaseType_t sent = xQueueSend(gFeedbackQueue, &event, 0);
+  if (sent != pdTRUE) {
+    M32OledFeedbackEvent dropped = {};
+    (void)xQueueReceive(gFeedbackQueue, &dropped, 0);
+    (void)xQueueSend(gFeedbackQueue, &event, 0);
+  }
+#else
+  (void)control;
+  (void)value;
+  (void)active;
+#endif
+}
+
 bool takeNextM32OledFrame(M32OledFramebuffer* frame) {
 #if POCKETSYNTH_ENABLE_M32_OLED
   if (frame == nullptr || gFrameQueue == nullptr) {
@@ -1438,6 +1576,26 @@ bool takeNextM32OledFrame(M32OledFramebuffer* frame) {
   return true;
 #else
   (void)frame;
+  return false;
+#endif
+}
+
+bool takeNextM32HidOutputReport(M32HidOutputReport* report) {
+#if POCKETSYNTH_ENABLE_M32_OLED
+  if (report == nullptr || gOutputReportQueue == nullptr) {
+    return false;
+  }
+  M32HidOutputReport queued = {};
+  if (xQueueReceive(gOutputReportQueue, &queued, 0) != pdTRUE) {
+    publishQueueState(gFrameQueue != nullptr && uxQueueMessagesWaiting(gFrameQueue) > 0);
+    return false;
+  }
+  *report = queued;
+  publishQueueState((gFrameQueue != nullptr && uxQueueMessagesWaiting(gFrameQueue) > 0) ||
+                    uxQueueMessagesWaiting(gOutputReportQueue) > 0);
+  return true;
+#else
+  (void)report;
   return false;
 #endif
 }

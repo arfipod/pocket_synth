@@ -304,6 +304,19 @@ CC64 value >= 64 -> sustain on
 CC64 value < 64  -> sustain off
 ```
 
+Some sustain pedals or adapter chains expose the opposite polarity. The firmware
+supports a build-time polarity flag:
+
+```ini
+-DPOCKETSYNTH_INVERT_SUSTAIN_PEDAL=1
+```
+
+When this flag is enabled, CC64 values `>= 64` are treated as sustain off and
+values `< 64` are treated as sustain on. The raw CC value is still stored in
+`SynthAudioState::cc[64]`; only the derived `sustainPedal` state is inverted.
+The WiFi Dev M32 test environment currently enables this flag for the connected
+pedal setup.
+
 Implemented behavior:
 
 - While sustain is on, NoteOff marks the note as `keyReleased = true` instead of clearing it.
@@ -403,10 +416,21 @@ Important coexistence details:
 - MIDI uses interface 1 with bulk endpoints `0x02` and `0x82`; firmware reads
   from `0x82`.
 - OLED uses HID interface 2, interrupt OUT endpoint `0x01`.
+- The M32 also exposes HID IN endpoint `0x81`; the PC host in the USBPcap
+  capture uses it to detect non-MIDI control button activity.
 - ESP-IDF public interface claiming cannot claim MIDI and the full HID interface
   together on the tested SETUP D because HID also has interrupt IN endpoint
   `0x81`.
 - Firmware therefore keeps MIDI on the public USB Host API and allocates only
   OLED OUT endpoint `0x01` through the USBH layer.
+- Direct HID IN allocation was also tested on SETUP D and returned
+  `ESP_ERR_NOT_SUPPORTED`, so `/status.usb_midi.hid_in_endpoint_allocated` is
+  expected to be false for now.
+- HID OUT report `0x80` is a 22-byte LED/state report observed in the capture.
+  The firmware can queue raw HID OUT reports and sends the baseline LED/state
+  report on M32 connection.
+- Since a proprietary command to disable the built-in `Template 1` screen was
+  not observed, the firmware keeps ownership by sending immediate feedback
+  frames plus an OLED heartbeat of the latest PocketSynth frame.
 - WiFi Dev keeps `/status`, `/logs`, and OTA available; USB Host diagnostics are
   disabled in `cardputer_adv_wifi_dev` to leave resources for MIDI + OLED.

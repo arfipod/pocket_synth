@@ -75,10 +75,20 @@ constexpr const char* TAG = "usb_midi";
 constexpr size_t USB_MIDI_MAX_DEVICES = 4;
 constexpr size_t USB_MIDI_TRANSFER_BUFFER_SIZE = 64;
 constexpr size_t M32_OLED_REPORT_BYTES = 265;
+constexpr size_t M32_HID_INPUT_TRANSFER_BYTES = 64;
+constexpr size_t M32_HID_INPUT_REPORT_BYTES = 38;
 constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
 constexpr uint8_t USB_CLASS_HID_LOCAL = 0x03;
 constexpr uint16_t NATIVE_INSTRUMENTS_VID = 0x17cc;
 constexpr uint16_t KOMPLETE_KONTROL_M32_PID = 0x1860;
+constexpr uint8_t M32_HID_INPUT_REPORT_ID = 0x01;
+constexpr uint8_t M32_LED_REPORT_ID = 0x80;
+constexpr size_t M32_LED_REPORT_BYTES = 22;
+
+constexpr uint8_t M32_LED_REPORT_HOST_IDLE[M32_LED_REPORT_BYTES] = {
+    M32_LED_REPORT_ID, 0x7c, 0x7c, 0x7c, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x7c, 0x7c, 0x00,
+    0x7c, 0x7c, 0x7e, 0x00, 0x7c, 0x7c};
 
 struct UsbMidiInterfaceInfo {
   bool found;
@@ -96,23 +106,29 @@ struct UsbMidiSnapshot {
   bool deviceConnected;
   bool interfaceClaimed;
   bool transferActive;
+  bool hidInEndpointAllocated;
+  bool hidInTransferActive;
   esp_err_t lastError;
   uint32_t connectCount;
   uint32_t disconnectCount;
   uint32_t packetCount;
   uint32_t transferCount;
+  uint32_t hidInReportCount;
   uint32_t errorCount;
   uint32_t lastEventMs;
   uint32_t lastPacketMs;
+  uint32_t lastHidInMs;
   uint8_t address;
   uint8_t interfaceNumber;
   uint8_t alternateSetting;
   uint8_t endpointAddress;
+  uint8_t hidInEndpointAddress;
   uint16_t endpointMaxPacketSize;
   uint16_t vid;
   uint16_t pid;
   char lastEvent[24];
   uint8_t lastPacket[4];
+  uint8_t lastHidInput[4];
 };
 
 struct JsonWriter {
@@ -211,10 +227,13 @@ void appendSnapshotJson(JsonWriter* writer, const UsbMidiSnapshot& snapshot) {
                "\"device_connected\":%s,"
                "\"interface_claimed\":%s,"
                "\"transfer_active\":%s,"
+               "\"hid_in_endpoint_allocated\":%s,"
+               "\"hid_in_transfer_active\":%s,"
                "\"connect_count\":%lu,"
                "\"disconnect_count\":%lu,"
                "\"packet_count\":%lu,"
                "\"transfer_count\":%lu,"
+               "\"hid_in_report_count\":%lu,"
                "\"error_count\":%lu,"
                "\"last_event\":",
                snapshot.enabled ? "true" : "false",
@@ -223,15 +242,19 @@ void appendSnapshotJson(JsonWriter* writer, const UsbMidiSnapshot& snapshot) {
                snapshot.deviceConnected ? "true" : "false",
                snapshot.interfaceClaimed ? "true" : "false",
                snapshot.transferActive ? "true" : "false",
+               snapshot.hidInEndpointAllocated ? "true" : "false",
+               snapshot.hidInTransferActive ? "true" : "false",
                static_cast<unsigned long>(snapshot.connectCount),
                static_cast<unsigned long>(snapshot.disconnectCount),
                static_cast<unsigned long>(snapshot.packetCount),
                static_cast<unsigned long>(snapshot.transferCount),
+               static_cast<unsigned long>(snapshot.hidInReportCount),
                static_cast<unsigned long>(snapshot.errorCount));
   appendJsonString(writer, snapshot.lastEvent);
   appendFormat(writer,
                ",\"last_event_ms\":%lu,"
                "\"last_packet_ms\":%lu,"
+               "\"last_hid_in_ms\":%lu,"
                "\"last_error\":\"%s\","
                "\"address\":%u,"
                "\"vid_hex\":\"0x%04x\","
@@ -239,11 +262,14 @@ void appendSnapshotJson(JsonWriter* writer, const UsbMidiSnapshot& snapshot) {
                "\"interface\":%u,"
                "\"alternate_setting\":%u,"
                "\"endpoint_address\":\"0x%02x\","
+               "\"hid_in_endpoint_address\":\"0x%02x\","
                "\"endpoint_max_packet_size\":%u,"
-               "\"last_packet\":\"%02x %02x %02x %02x\""
+               "\"last_packet\":\"%02x %02x %02x %02x\","
+               "\"last_hid_input\":\"%02x %02x %02x %02x\""
                "}",
                static_cast<unsigned long>(snapshot.lastEventMs),
                static_cast<unsigned long>(snapshot.lastPacketMs),
+               static_cast<unsigned long>(snapshot.lastHidInMs),
                esp_err_to_name(snapshot.lastError),
                static_cast<unsigned int>(snapshot.address),
                static_cast<unsigned int>(snapshot.vid),
@@ -251,11 +277,16 @@ void appendSnapshotJson(JsonWriter* writer, const UsbMidiSnapshot& snapshot) {
                static_cast<unsigned int>(snapshot.interfaceNumber),
                static_cast<unsigned int>(snapshot.alternateSetting),
                static_cast<unsigned int>(snapshot.endpointAddress),
+               static_cast<unsigned int>(snapshot.hidInEndpointAddress),
                static_cast<unsigned int>(snapshot.endpointMaxPacketSize),
                static_cast<unsigned int>(snapshot.lastPacket[0]),
                static_cast<unsigned int>(snapshot.lastPacket[1]),
                static_cast<unsigned int>(snapshot.lastPacket[2]),
-               static_cast<unsigned int>(snapshot.lastPacket[3]));
+               static_cast<unsigned int>(snapshot.lastPacket[3]),
+               static_cast<unsigned int>(snapshot.lastHidInput[0]),
+               static_cast<unsigned int>(snapshot.lastHidInput[1]),
+               static_cast<unsigned int>(snapshot.lastHidInput[2]),
+               static_cast<unsigned int>(snapshot.lastHidInput[3]));
 }
 
 #if POCKETSYNTH_ENABLE_USB_MIDI_HOST
@@ -273,20 +304,32 @@ struct TrackedUsbMidiDevice {
   usb_device_handle_t handle;
   usb_transfer_t* transfer;
   usb_transfer_t* oledTransfer;
+  usb_transfer_t* hidInTransfer;
   usbh_ep_handle_t oledEndpoint;
+  usbh_ep_handle_t hidInEndpoint;
   UsbMidiInterfaceInfo midi;
   UsbMidiInterfaceInfo oled;
+  UsbMidiInterfaceInfo hidIn;
   bool connected;
   bool interfaceClaimed;
   bool transferInFlight;
   bool oledInterfaceClaimed;
   bool oledEndpointAllocated;
+  bool hidInEndpointAllocated;
   bool oledTransferInFlight;
+  bool hidInTransferInFlight;
   bool oledHasCurrentFrame;
+  bool oledHasCurrentRawReport;
   bool oledUseDirectEndpoint;
+  bool hidInUseDirectEndpoint;
   usbh_ep_event_t oledEndpointEvent;
+  usbh_ep_event_t hidInEndpointEvent;
   uint8_t oledSegment;
+  uint16_t oledRawReportBytes;
   M32OledFramebuffer oledFrame;
+  uint8_t oledRawReport[M32_OLED_REPORT_BYTES];
+  uint8_t lastHidInputReport[M32_HID_INPUT_REPORT_BYTES];
+  bool hasLastHidInputReport;
   uint16_t vid;
   uint16_t pid;
   uint8_t actions;
@@ -299,6 +342,8 @@ enum UsbMidiAction : uint8_t {
   UsbMidiActionClearEndpoint = 1U << 3,
   UsbMidiActionSubmitOledTransfer = 1U << 4,
   UsbMidiActionCompleteOledTransfer = 1U << 5,
+  UsbMidiActionSubmitHidInTransfer = 1U << 6,
+  UsbMidiActionCompleteHidInTransfer = 1U << 7,
 };
 
 TrackedUsbMidiDevice gTrackedDevices[USB_MIDI_MAX_DEVICES] = {};
@@ -375,6 +420,9 @@ void publishDisconnected(uint8_t address) {
   gSnapshot.deviceConnected = false;
   gSnapshot.interfaceClaimed = false;
   gSnapshot.transferActive = false;
+  gSnapshot.hidInEndpointAllocated = false;
+  gSnapshot.hidInTransferActive = false;
+  gSnapshot.hidInEndpointAddress = 0;
   gSnapshot.address = address;
   ++gSnapshot.disconnectCount;
   setLastEvent(&gSnapshot, "disconnected", ESP_OK);
@@ -390,6 +438,32 @@ void publishTransferActive(bool active, esp_err_t err) {
   } else if (err != ESP_OK) {
     ++gSnapshot.errorCount;
     setLastEvent(&gSnapshot, "transfer_error", err);
+  }
+  portEXIT_CRITICAL(&gUsbMidiMux);
+}
+
+void publishHidInEndpointState(const TrackedUsbMidiDevice& device, bool allocated) {
+  portENTER_CRITICAL(&gUsbMidiMux);
+  gSnapshot.hidInEndpointAllocated = allocated;
+  gSnapshot.hidInEndpointAddress = allocated ? device.hidIn.endpointAddress : 0;
+  portEXIT_CRITICAL(&gUsbMidiMux);
+}
+
+void publishHidInTransferActive(bool active) {
+  portENTER_CRITICAL(&gUsbMidiMux);
+  gSnapshot.hidInTransferActive = active;
+  portEXIT_CRITICAL(&gUsbMidiMux);
+}
+
+void publishHidInReport(const uint8_t* report, size_t reportLength) {
+  portENTER_CRITICAL(&gUsbMidiMux);
+  ++gSnapshot.hidInReportCount;
+  gSnapshot.lastHidInMs = static_cast<uint32_t>(esp_timer_get_time() / 1000ULL);
+  memset(gSnapshot.lastHidInput, 0, sizeof(gSnapshot.lastHidInput));
+  if (report != nullptr) {
+    const size_t copyBytes =
+        reportLength < sizeof(gSnapshot.lastHidInput) ? reportLength : sizeof(gSnapshot.lastHidInput);
+    memcpy(gSnapshot.lastHidInput, report, copyBytes);
   }
   portEXIT_CRITICAL(&gUsbMidiMux);
 }
@@ -516,6 +590,17 @@ bool endpointIsSupportedHidOut(const usb_ep_desc_t* endpointDesc) {
   const bool isOut = (endpointDesc->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) == 0;
   const uint8_t transferType = endpointDesc->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK;
   return isOut &&
+         (transferType == USB_BM_ATTRIBUTES_XFER_INT || transferType == USB_BM_ATTRIBUTES_XFER_BULK);
+}
+
+bool endpointIsSupportedHidIn(const usb_ep_desc_t* endpointDesc) {
+  if (endpointDesc == nullptr) {
+    return false;
+  }
+
+  const bool isIn = (endpointDesc->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0;
+  const uint8_t transferType = endpointDesc->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK;
+  return isIn &&
          (transferType == USB_BM_ATTRIBUTES_XFER_INT || transferType == USB_BM_ATTRIBUTES_XFER_BULK);
 }
 
@@ -649,6 +734,52 @@ bool parseM32HidOutInterface(const usb_config_desc_t* configDesc, UsbMidiInterfa
   return out->found;
 }
 
+bool parseM32HidInInterface(const usb_config_desc_t* configDesc, UsbMidiInterfaceInfo* out) {
+  if (configDesc == nullptr || out == nullptr) {
+    return false;
+  }
+
+  *out = {};
+  bool currentIsHid = false;
+  UsbMidiInterfaceInfo currentInterface = {};
+
+  int offset = 0;
+  const usb_standard_desc_t* descriptor = reinterpret_cast<const usb_standard_desc_t*>(configDesc);
+  while ((descriptor = usb_parse_next_descriptor(descriptor, configDesc->wTotalLength, &offset)) != nullptr) {
+    if (descriptor->bDescriptorType == USB_B_DESCRIPTOR_TYPE_INTERFACE &&
+        descriptor->bLength >= USB_INTF_DESC_SIZE) {
+      const usb_intf_desc_t* interfaceDesc = reinterpret_cast<const usb_intf_desc_t*>(descriptor);
+      currentIsHid = interfaceDesc->bInterfaceClass == USB_CLASS_HID_LOCAL;
+      currentInterface = {};
+      if (currentIsHid) {
+        currentInterface.interfaceNumber = interfaceDesc->bInterfaceNumber;
+        currentInterface.alternateSetting = interfaceDesc->bAlternateSetting;
+      }
+      continue;
+    }
+
+    if (!currentIsHid ||
+        descriptor->bDescriptorType != USB_B_DESCRIPTOR_TYPE_ENDPOINT ||
+        descriptor->bLength < USB_EP_DESC_SIZE) {
+      continue;
+    }
+
+    const usb_ep_desc_t* endpointDesc = reinterpret_cast<const usb_ep_desc_t*>(descriptor);
+    if (!endpointIsSupportedHidIn(endpointDesc)) {
+      continue;
+    }
+
+    currentInterface.found = true;
+    currentInterface.endpointAddress = endpointDesc->bEndpointAddress;
+    currentInterface.endpointAttributes = endpointDesc->bmAttributes;
+    currentInterface.endpointMaxPacketSize = endpointMaxPacketSize(endpointDesc);
+    *out = currentInterface;
+    return true;
+  }
+
+  return out->found;
+}
+
 uint16_t transferSizeForEndpoint(uint16_t endpointMps) {
   if (endpointMps == 0 || endpointMps > USB_MIDI_TRANSFER_BUFFER_SIZE) {
     return 0;
@@ -759,6 +890,11 @@ void handleM32OledTransferResult(TrackedUsbMidiDevice* midiDevice, usb_transfer_
   publishM32OledTransportActive(false, ESP_OK);
 
   if (status == USB_TRANSFER_STATUS_COMPLETED) {
+    if (midiDevice->oledHasCurrentRawReport) {
+      midiDevice->oledHasCurrentRawReport = false;
+      midiDevice->oledRawReportBytes = 0;
+      return;
+    }
     if (midiDevice->oledSegment == 0) {
       midiDevice->oledSegment = 1;
       midiDevice->actions |= UsbMidiActionSubmitOledTransfer;
@@ -779,6 +915,8 @@ void handleM32OledTransferResult(TrackedUsbMidiDevice* midiDevice, usb_transfer_
     midiDevice->actions |= UsbMidiActionClose;
   } else {
     midiDevice->oledHasCurrentFrame = false;
+    midiDevice->oledHasCurrentRawReport = false;
+    midiDevice->oledRawReportBytes = 0;
   }
   gHasPendingActions = true;
 }
@@ -790,6 +928,17 @@ bool m32OledDirectEndpointCallback(usbh_ep_handle_t, usbh_ep_event_t epEvent, vo
   }
   device->oledEndpointEvent = epEvent;
   device->actions |= UsbMidiActionCompleteOledTransfer;
+  gHasPendingActions = true;
+  return false;
+}
+
+bool m32HidInDirectEndpointCallback(usbh_ep_handle_t, usbh_ep_event_t epEvent, void* userArg, bool) {
+  TrackedUsbMidiDevice* device = static_cast<TrackedUsbMidiDevice*>(userArg);
+  if (device == nullptr) {
+    return false;
+  }
+  device->hidInEndpointEvent = epEvent;
+  device->actions |= UsbMidiActionCompleteHidInTransfer;
   gHasPendingActions = true;
   return false;
 }
@@ -808,6 +957,15 @@ void configureM32OledTransferCallback(TrackedUsbMidiDevice* device) {
     handleM32OledTransferResult(midiDevice, transfer->status);
   };
   device->oledTransfer->context = device;
+}
+
+void configureM32HidInTransfer(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || device->hidInTransfer == nullptr) {
+    return;
+  }
+
+  device->hidInTransfer->callback = [](usb_transfer_t*) {};
+  device->hidInTransfer->context = device;
 }
 
 esp_err_t allocateM32OledDirectEndpoint(TrackedUsbMidiDevice* device) {
@@ -829,6 +987,195 @@ esp_err_t allocateM32OledDirectEndpoint(TrackedUsbMidiDevice* device) {
     device->oledUseDirectEndpoint = true;
   }
   return err;
+}
+
+esp_err_t allocateM32HidInDirectEndpoint(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || device->handle == nullptr || !device->hidIn.found) {
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  usbh_ep_config_t config = {};
+  config.bInterfaceNumber = device->hidIn.interfaceNumber;
+  config.bAlternateSetting = device->hidIn.alternateSetting;
+  config.bEndpointAddress = device->hidIn.endpointAddress;
+  config.ep_cb = m32HidInDirectEndpointCallback;
+  config.ep_cb_arg = device;
+  config.context = device;
+
+  const esp_err_t err = usbh_ep_alloc(device->handle, &config, &device->hidInEndpoint);
+  if (err == ESP_OK) {
+    device->hidInEndpointAllocated = true;
+    device->hidInUseDirectEndpoint = true;
+    publishHidInEndpointState(*device, true);
+  }
+  return err;
+}
+
+int m32LedByteForHidButton(uint8_t inputByteIndex, uint8_t bitMask) {
+  if (inputByteIndex == 1 && bitMask == 0x02) return 2;
+  if (inputByteIndex == 1 && bitMask == 0x04) return 3;
+  if (inputByteIndex == 2 && bitMask == 0x10) return 13;
+  if (inputByteIndex == 2 && bitMask == 0x20) return 14;
+  if (inputByteIndex == 2 && bitMask == 0x40) return 15;
+  if (inputByteIndex == 2 && bitMask == 0x80) return 16;
+  if (inputByteIndex == 3 && bitMask == 0x10) return 21;
+  return -1;
+}
+
+uint8_t m32SurfaceControlId(uint8_t inputByteIndex, uint8_t bit) {
+  return static_cast<uint8_t>(((inputByteIndex - 1U) * 8U) + bit);
+}
+
+void queueM32LedReportForButton(uint8_t inputByteIndex, uint8_t bitMask, bool active) {
+  uint8_t report[M32_LED_REPORT_BYTES] = {};
+  memcpy(report, M32_LED_REPORT_HOST_IDLE, sizeof(report));
+
+  const int ledByte = m32LedByteForHidButton(inputByteIndex, bitMask);
+  if (ledByte >= 0 && ledByte < static_cast<int>(M32_LED_REPORT_BYTES)) {
+    report[ledByte] = active ? 0x7e : M32_LED_REPORT_HOST_IDLE[ledByte];
+    (void)sendM32HidOutputReport(report, sizeof(report), 0);
+  }
+}
+
+void processM32HidInputReport(TrackedUsbMidiDevice* device, const uint8_t* report, size_t reportLength) {
+  if (device == nullptr || report == nullptr ||
+      reportLength < M32_HID_INPUT_REPORT_BYTES || report[0] != M32_HID_INPUT_REPORT_ID) {
+    return;
+  }
+
+  if (!device->hasLastHidInputReport) {
+    memcpy(device->lastHidInputReport, report, M32_HID_INPUT_REPORT_BYTES);
+    device->hasLastHidInputReport = true;
+    return;
+  }
+
+  bool reportedSurfaceActivity = false;
+  for (uint8_t inputByte = 1; inputByte <= 4; ++inputByte) {
+    const uint8_t changed = static_cast<uint8_t>(device->lastHidInputReport[inputByte] ^ report[inputByte]);
+    if (changed == 0) {
+      continue;
+    }
+    for (uint8_t bit = 0; bit < 8; ++bit) {
+      const uint8_t mask = static_cast<uint8_t>(1U << bit);
+      if ((changed & mask) == 0) {
+        continue;
+      }
+      const bool pressed = (report[inputByte] & mask) != 0;
+      notifyM32OledSurfaceActivity(m32SurfaceControlId(inputByte, bit),
+                                   pressed ? 127 : 0,
+                                   pressed);
+      queueM32LedReportForButton(inputByte, mask, pressed);
+      reportedSurfaceActivity = true;
+    }
+  }
+
+  if (!reportedSurfaceActivity && memcmp(device->lastHidInputReport, report, M32_HID_INPUT_REPORT_BYTES) != 0) {
+    uint8_t value = 0;
+    for (size_t i = 5; i < M32_HID_INPUT_REPORT_BYTES; ++i) {
+      if (device->lastHidInputReport[i] != report[i]) {
+        value = report[i];
+        break;
+      }
+    }
+    notifyM32OledSurfaceActivity(0xff, value, true);
+  }
+
+  memcpy(device->lastHidInputReport, report, M32_HID_INPUT_REPORT_BYTES);
+}
+
+void handleM32HidInTransferResult(TrackedUsbMidiDevice* device, usb_transfer_status_t status) {
+  if (device == nullptr) {
+    return;
+  }
+
+  device->hidInTransferInFlight = false;
+  publishHidInTransferActive(false);
+
+  if (status == USB_TRANSFER_STATUS_COMPLETED && device->hidInTransfer != nullptr) {
+    const int bytes = device->hidInTransfer->actual_num_bytes;
+    if (bytes >= static_cast<int>(M32_HID_INPUT_REPORT_BYTES)) {
+      publishHidInReport(device->hidInTransfer->data_buffer, static_cast<size_t>(bytes));
+      processM32HidInputReport(device,
+                               device->hidInTransfer->data_buffer,
+                               static_cast<size_t>(bytes));
+    }
+    device->actions |= UsbMidiActionSubmitHidInTransfer;
+    gHasPendingActions = true;
+    return;
+  }
+
+  ESP_LOGW(TAG, "M32 HID IN status=%s", transferStatusToString(status));
+  addDiagnosticLog("W", TAG, "M32 HID IN status=%s", transferStatusToString(status));
+  if (status == USB_TRANSFER_STATUS_NO_DEVICE ||
+      status == USB_TRANSFER_STATUS_CANCELED) {
+    device->actions |= UsbMidiActionClose;
+  } else {
+    device->actions |= UsbMidiActionSubmitHidInTransfer;
+  }
+  gHasPendingActions = true;
+}
+
+void completeM32HidInDirectTransfer(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || !device->hidInEndpointAllocated || device->hidInEndpoint == nullptr) {
+    return;
+  }
+
+  urb_t* urb = nullptr;
+  const esp_err_t err = usbh_ep_dequeue_urb(device->hidInEndpoint, &urb);
+  if (err != ESP_OK || urb == nullptr) {
+    addDiagnosticLog("W", TAG, "M32 HID IN dequeue failed: %s", esp_err_to_name(err));
+    return;
+  }
+
+  urb->usb_host_inflight = false;
+  usb_transfer_status_t status = urb->transfer.status;
+  if (device->hidInEndpointEvent != USBH_EP_EVENT_URB_DONE) {
+    status = statusFromUsbHEvent(device->hidInEndpointEvent);
+  }
+  handleM32HidInTransferResult(device, status);
+}
+
+void submitM32HidInTransfer(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || device->handle == nullptr || device->hidInTransfer == nullptr ||
+      !device->hidInUseDirectEndpoint || device->hidInTransferInFlight) {
+    return;
+  }
+
+  const uint16_t transferSize = transferSizeForEndpoint(device->hidIn.endpointMaxPacketSize);
+  if (transferSize == 0 || transferSize > M32_HID_INPUT_TRANSFER_BYTES) {
+    addDiagnosticLog("W", TAG, "M32 HID IN unsupported mps=%u", device->hidIn.endpointMaxPacketSize);
+    return;
+  }
+
+  device->hidInTransfer->device_handle = device->handle;
+  device->hidInTransfer->bEndpointAddress = device->hidIn.endpointAddress;
+  device->hidInTransfer->num_bytes = transferSize;
+  device->hidInTransfer->timeout_ms = 0;
+
+  esp_err_t err = ESP_OK;
+  urb_t* urb = transferToUrb(device->hidInTransfer);
+  if (urb == nullptr) {
+    err = ESP_ERR_INVALID_ARG;
+  } else {
+    urb->usb_host_inflight = true;
+    err = usbh_ep_enqueue_urb(device->hidInEndpoint, urb);
+    if (err != ESP_OK) {
+      urb->usb_host_inflight = false;
+    }
+  }
+
+  if (err == ESP_OK || err == ESP_ERR_NOT_FINISHED) {
+    device->hidInTransferInFlight = true;
+    publishHidInTransferActive(true);
+    return;
+  }
+
+  ESP_LOGW(TAG, "M32 HID IN submit failed: %s", esp_err_to_name(err));
+  addDiagnosticLog("W", TAG, "M32 HID IN submit failed: %s", esp_err_to_name(err));
+  publishHidInTransferActive(false);
+  if (err == ESP_ERR_INVALID_STATE || err == ESP_ERR_NOT_FOUND || err == ESP_ERR_NOT_SUPPORTED) {
+    device->hidInUseDirectEndpoint = false;
+  }
 }
 
 void completeM32OledDirectTransfer(TrackedUsbMidiDevice* device) {
@@ -854,27 +1201,39 @@ void completeM32OledDirectTransfer(TrackedUsbMidiDevice* device) {
 void submitM32OledTransfer(TrackedUsbMidiDevice* device) {
   if (device == nullptr || device->handle == nullptr || device->oledTransfer == nullptr ||
       (!device->oledInterfaceClaimed && !device->oledUseDirectEndpoint) ||
-      device->oledTransferInFlight || !device->oledHasCurrentFrame) {
+      device->oledTransferInFlight ||
+      (!device->oledHasCurrentFrame && !device->oledHasCurrentRawReport)) {
     return;
   }
 
-  const uint16_t page = device->oledSegment == 0 ? 0 : 2;
   uint8_t* report = device->oledTransfer->data_buffer;
+  size_t reportBytes = M32_OLED_REPORT_BYTES;
 
-  esp_err_t err = writeM32OledRegionReport(report,
-                                           M32_OLED_REPORT_BYTES,
-                                           device->oledFrame,
-                                           page);
-  if (err != ESP_OK) {
-    addDiagnosticLog("W", TAG, "M32 OLED report build failed: %s", esp_err_to_name(err));
-    publishM32OledTransportError("report_error", err);
-    device->oledHasCurrentFrame = false;
-    return;
+  esp_err_t err = ESP_OK;
+  if (device->oledHasCurrentRawReport) {
+    if (device->oledRawReportBytes == 0 || device->oledRawReportBytes > M32_OLED_REPORT_BYTES) {
+      device->oledHasCurrentRawReport = false;
+      return;
+    }
+    memcpy(report, device->oledRawReport, device->oledRawReportBytes);
+    reportBytes = device->oledRawReportBytes;
+  } else {
+    const uint16_t page = device->oledSegment == 0 ? 0 : 2;
+    err = writeM32OledRegionReport(report,
+                                   M32_OLED_REPORT_BYTES,
+                                   device->oledFrame,
+                                   page);
+    if (err != ESP_OK) {
+      addDiagnosticLog("W", TAG, "M32 OLED report build failed: %s", esp_err_to_name(err));
+      publishM32OledTransportError("report_error", err);
+      device->oledHasCurrentFrame = false;
+      return;
+    }
   }
 
   device->oledTransfer->device_handle = device->handle;
   device->oledTransfer->bEndpointAddress = device->oled.endpointAddress;
-  device->oledTransfer->num_bytes = M32_OLED_REPORT_BYTES;
+  device->oledTransfer->num_bytes = reportBytes;
   device->oledTransfer->timeout_ms = 0;
 
   if (device->oledUseDirectEndpoint) {
@@ -902,6 +1261,8 @@ void submitM32OledTransfer(TrackedUsbMidiDevice* device) {
   publishM32OledTransportActive(false, err);
   if (err == ESP_ERR_INVALID_STATE || err == ESP_ERR_NOT_FOUND || err == ESP_ERR_NOT_SUPPORTED) {
     device->oledHasCurrentFrame = false;
+    device->oledHasCurrentRawReport = false;
+    device->oledRawReportBytes = 0;
     device->oledUseDirectEndpoint = false;
     publishM32OledTransportError("oled_disabled", err);
     addDiagnosticLog("W", TAG, "M32 OLED disabled, MIDI remains active");
@@ -911,7 +1272,18 @@ void submitM32OledTransfer(TrackedUsbMidiDevice* device) {
 void maybeStartNextM32OledFrame(TrackedUsbMidiDevice* device) {
   if (device == nullptr || !device->connected ||
       (!device->oledInterfaceClaimed && !device->oledUseDirectEndpoint) ||
-      device->oledTransferInFlight || device->oledHasCurrentFrame) {
+      device->oledTransferInFlight || device->oledHasCurrentFrame || device->oledHasCurrentRawReport) {
+    return;
+  }
+
+  M32HidOutputReport rawReport = {};
+  if (takeNextM32HidOutputReport(&rawReport)) {
+    if (rawReport.length > 0 && rawReport.length <= M32_OLED_REPORT_BYTES) {
+      memcpy(device->oledRawReport, rawReport.bytes, rawReport.length);
+      device->oledRawReportBytes = rawReport.length;
+      device->oledHasCurrentRawReport = true;
+      submitM32OledTransfer(device);
+    }
     return;
   }
 
@@ -932,7 +1304,7 @@ void cleanupDevice(TrackedUsbMidiDevice* device) {
   const bool wasConnected = device->connected;
   const uint8_t address = device->address;
 
-  if (device->transferInFlight || device->oledTransferInFlight) {
+  if (device->transferInFlight || device->oledTransferInFlight || device->hidInTransferInFlight) {
     device->actions |= UsbMidiActionClose;
     gHasPendingActions = true;
     return;
@@ -964,6 +1336,18 @@ void cleanupDevice(TrackedUsbMidiDevice* device) {
     device->oledEndpointAllocated = false;
   }
 
+  if (device->hidInEndpointAllocated && device->hidInEndpoint != nullptr) {
+    const esp_err_t freeErr = usbh_ep_free(device->hidInEndpoint);
+    if (freeErr != ESP_OK) {
+      ESP_LOGW(TAG, "M32 HID IN endpoint free failed: %s", esp_err_to_name(freeErr));
+      addDiagnosticLog("W", TAG, "M32 HID IN free failed: %s", esp_err_to_name(freeErr));
+      publishM32OledTransportError("hid_in_free_error", freeErr);
+    }
+    device->hidInEndpoint = nullptr;
+    device->hidInEndpointAllocated = false;
+    publishHidInEndpointState(*device, false);
+  }
+
   if (device->interfaceClaimed && device->handle != nullptr) {
     const esp_err_t releaseErr = usb_host_interface_release(gClientHandle,
                                                             device->handle,
@@ -987,6 +1371,16 @@ void cleanupDevice(TrackedUsbMidiDevice* device) {
       publishM32OledTransportError("free_error", freeErr);
     }
     device->oledTransfer = nullptr;
+  }
+
+  if (device->hidInTransfer != nullptr) {
+    const esp_err_t freeErr = usb_host_transfer_free(device->hidInTransfer);
+    if (freeErr != ESP_OK) {
+      ESP_LOGW(TAG, "M32 HID IN transfer free failed: %s", esp_err_to_name(freeErr));
+      addDiagnosticLog("W", TAG, "M32 HID IN transfer free failed: %s", esp_err_to_name(freeErr));
+      publishM32OledTransportError("hid_in_xfer_free_error", freeErr);
+    }
+    device->hidInTransfer = nullptr;
   }
 
   if (device->handle != nullptr) {
@@ -1245,10 +1639,59 @@ void openDevice(TrackedUsbMidiDevice* device) {
                                            device->vid,
                                            device->pid,
                                            device->oledInterfaceClaimed);
+          (void)sendM32HidOutputReport(M32_LED_REPORT_HOST_IDLE, sizeof(M32_LED_REPORT_HOST_IDLE), 0);
           sendM32OledText("POCKETSYNTH",
                           "M32 OLED READY",
                           device->oledUseDirectEndpoint ? "USB HID DIRECT" : "USB HID OUT",
                           0);
+
+          if (parseM32HidInInterface(configDesc, &device->hidIn)) {
+            addDiagnosticLog("I",
+                             TAG,
+                             "M32 HID IN candidate intf=%u alt=%u ep=0x%02x attr=0x%02x mps=%u",
+                             static_cast<unsigned int>(device->hidIn.interfaceNumber),
+                             static_cast<unsigned int>(device->hidIn.alternateSetting),
+                             static_cast<unsigned int>(device->hidIn.endpointAddress),
+                             static_cast<unsigned int>(device->hidIn.endpointAttributes),
+                             static_cast<unsigned int>(device->hidIn.endpointMaxPacketSize));
+            err = allocateM32HidInDirectEndpoint(device);
+            if (err != ESP_OK) {
+              addDiagnosticLog("W", TAG, "M32 HID IN direct endpoint failed: %s", esp_err_to_name(err));
+            } else {
+              err = usb_host_transfer_alloc(M32_HID_INPUT_TRANSFER_BYTES, 0, &device->hidInTransfer);
+              if (err != ESP_OK || device->hidInTransfer == nullptr) {
+                addDiagnosticLog("W",
+                                 TAG,
+                                 "M32 HID IN transfer alloc failed: %s",
+                                 esp_err_to_name(err != ESP_OK ? err : ESP_ERR_NO_MEM));
+                const esp_err_t freeErr = usbh_ep_free(device->hidInEndpoint);
+                if (freeErr != ESP_OK) {
+                  addDiagnosticLog("W", TAG, "M32 HID IN release after alloc failed: %s", esp_err_to_name(freeErr));
+                }
+                device->hidInEndpoint = nullptr;
+                device->hidInEndpointAllocated = false;
+                device->hidInUseDirectEndpoint = false;
+                publishHidInEndpointState(*device, false);
+              } else {
+                configureM32HidInTransfer(device);
+                ESP_LOGI(TAG,
+                         "Komplete M32 HID IN direct addr=%u intf=%u ep=0x%02x mps=%u",
+                         static_cast<unsigned int>(device->address),
+                         static_cast<unsigned int>(device->hidIn.interfaceNumber),
+                         static_cast<unsigned int>(device->hidIn.endpointAddress),
+                         static_cast<unsigned int>(device->hidIn.endpointMaxPacketSize));
+                addDiagnosticLog("I",
+                                 TAG,
+                                 "M32 HID IN direct addr=%u intf=%u ep=0x%02x",
+                                 static_cast<unsigned int>(device->address),
+                                 static_cast<unsigned int>(device->hidIn.interfaceNumber),
+                                 static_cast<unsigned int>(device->hidIn.endpointAddress));
+                device->actions |= UsbMidiActionSubmitHidInTransfer;
+              }
+            }
+          } else {
+            addDiagnosticLog("W", TAG, "M32 HID IN not found");
+          }
         }
       }
     }
@@ -1304,6 +1747,12 @@ void processPendingActions() {
     }
     if ((actions & UsbMidiActionCompleteOledTransfer) != 0) {
       completeM32OledDirectTransfer(&device);
+    }
+    if ((actions & UsbMidiActionSubmitHidInTransfer) != 0) {
+      submitM32HidInTransfer(&device);
+    }
+    if ((actions & UsbMidiActionCompleteHidInTransfer) != 0) {
+      completeM32HidInDirectTransfer(&device);
     }
   }
 }
@@ -1377,7 +1826,7 @@ void usbMidiHostTask(void*) {
       maybeStartNextM32OledFrame(&device);
     }
 
-    err = usb_host_client_handle_events(gClientHandle, pdMS_TO_TICKS(500));
+    err = usb_host_client_handle_events(gClientHandle, pdMS_TO_TICKS(25));
     if (err == ESP_OK || err == ESP_ERR_TIMEOUT) {
       continue;
     }

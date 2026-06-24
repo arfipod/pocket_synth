@@ -20,6 +20,12 @@ Implemented:
 - Full OLED frame updates using two 128 x 16 HID OUT reports.
 - Splash frame on M32 connection.
 - OLED feedback for MIDI Note On/Off, Control Change, and Pitch Bend.
+- Forced repaint window after input feedback to keep the PocketSynth UI visible
+  over the M32's built-in `Template 1` MIDI-mode screen.
+- OLED ownership heartbeat that re-sends the latest PocketSynth frame roughly
+  every 80 ms while the M32 is connected.
+- Raw HID OUT reports on the OLED endpoint, currently used for the observed
+  `0x80` LED/state report.
 - JSON status in `GET /status`.
 - Bounded logs in `GET /logs`.
 - Optional build flag: `POCKETSYNTH_ENABLE_M32_OLED`.
@@ -27,6 +33,15 @@ Implemented:
 Not implemented yet:
 
 - Proprietary HID input report decoding for non-MIDI M32 buttons.
+- A known proprietary command that disables the M32's built-in `Template 1`
+  MIDI-mode display owner. The capture did not show one; the current firmware
+  wins ownership by repainting the PocketSynth bitmap shortly after each input
+  event and periodically while connected.
+- Full suppression of the built-in `Template 1` / `CC ##` screen. It can still
+  appear briefly when the M32 firmware redraws its own MIDI-template UI, but the
+  PocketSynth heartbeat should repaint over it quickly. A future iteration should
+  find a real M32 host/takeover command or another transport strategy that
+  prevents the built-in screen from appearing at all.
 - Komplete Kontrol, NKS, DAW integration, or M32 display protocol beyond bitmap
   OLED writes.
 - Proportional fonts, Unicode, or partial dirty-region tracking.
@@ -168,6 +183,39 @@ The firmware therefore uses this order:
 The direct OUT endpoint path is intentionally limited to the M32 OLED build and
 is not used in normal firmware.
 
+## LED / State Report
+
+The capture also contains HID OUT report `0x80` on endpoint `0x01`:
+
+```text
+80 7c 7c 7c 00 00 00 00 00 00 00 00 00 7c 7c 00 7c 7c 7e 00 7c 7c
+```
+
+Observed changes suggest this 22-byte report controls lit/dim/off state for
+M32 control buttons. Known correlated positions:
+
+```text
+HID IN byte 1 bit 0x02 -> OUT 0x80 byte 2
+HID IN byte 1 bit 0x04 -> OUT 0x80 byte 3
+HID IN byte 2 bit 0x10 -> OUT 0x80 byte 13
+HID IN byte 2 bit 0x20 -> OUT 0x80 byte 14
+HID IN byte 2 bit 0x40 -> OUT 0x80 byte 15
+HID IN byte 2 bit 0x80 -> OUT 0x80 byte 16
+HID IN byte 3 bit 0x10 -> OUT 0x80 byte 21
+```
+
+Values observed:
+
+```text
+0x00 off
+0x7c normal/dim lit
+0x7e highlighted/pressed
+0x02 alternate low state on byte 18
+```
+
+The firmware sends the baseline `0x80` report on connection and exposes a raw
+HID OUT queue so future UI code can drive these states deliberately.
+
 ## Diagnostics
 
 Expected log sequence on SETUP D:
@@ -203,6 +251,19 @@ transfer_active: false
 ```
 
 MIDI packets continued to arrive while OLED feedback frames were being sent.
+
+With the ownership heartbeat enabled, `frame_count` should continue increasing
+while the M32 is connected even when the user is not moving a control. On
+2026-06-25, SETUP D showed `frame_count=94` and `transfer_count=190` about
+9.4 seconds after boot.
+
+`GET /status` now includes a `usb_midi` object. The M32 exposes HID IN endpoint
+`0x81`, and the PC host in the capture uses that stream to detect control
+button activity. On the Cardputer ADV test setup, attempting to reserve HID IN
+directly alongside MIDI IN and OLED OUT returned `ESP_ERR_NOT_SUPPORTED`, so
+`usb_midi.hid_in_endpoint_allocated` remains `false`. The heartbeat is the
+current workaround for M32 controls that redraw `Template 1` without producing
+MIDI.
 
 ## Troubleshooting
 
