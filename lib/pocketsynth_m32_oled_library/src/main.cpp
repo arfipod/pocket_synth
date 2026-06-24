@@ -98,19 +98,19 @@ extern "C" void app_main(void) {
     }
   }
 
-  if (isM32OledBuildEnabled()) {
-    esp_err_t m32OledErr = initializeM32Oled();
-    if (m32OledErr != ESP_OK) {
-      ESP_LOGE(TAG, "Komplete M32 OLED init failed: %s", esp_err_to_name(m32OledErr));
-      addDiagnosticLog("E", TAG, "M32 OLED init failed: %s", esp_err_to_name(m32OledErr));
-    }
-  }
-
   if (isUsbMidiHostBuildEnabled()) {
     esp_err_t usbMidiErr = initializeUsbMidiHost();
     if (usbMidiErr != ESP_OK) {
       ESP_LOGE(TAG, "USB MIDI host init failed: %s", esp_err_to_name(usbMidiErr));
       addDiagnosticLog("E", TAG, "USB MIDI host init failed: %s", esp_err_to_name(usbMidiErr));
+    }
+  }
+
+  if (isM32OledBuildEnabled()) {
+    esp_err_t m32OledErr = initializeM32Oled();
+    if (m32OledErr != ESP_OK) {
+      ESP_LOGE(TAG, "Komplete M32 OLED init failed: %s", esp_err_to_name(m32OledErr));
+      addDiagnosticLog("E", TAG, "M32 OLED init failed: %s", esp_err_to_name(m32OledErr));
     }
   }
 

@@ -345,7 +345,7 @@ Steps:
 Expected:
 
 - USB Host library ready;
-- USB diagnostic client ready;
+- USB diagnostic client ready only if enabled;
 - hub support enabled;
 - device connected;
 - VID/PID shown;
@@ -400,7 +400,55 @@ Pass criteria:
 - no crash on repeated key presses;
 - no crash on disconnect.
 
-## 9. MIDI Parser Validation
+## 9. M32 OLED Feedback Validation
+
+Setup: SETUP D.
+
+Steps:
+
+1. Boot `cardputer_adv_wifi_dev`.
+2. Connect powered hub and M32.
+3. Read logs and status.
+4. Confirm the M32 OLED shows the `POCKETSYNTH` splash.
+5. Move knobs or touch strips.
+6. Press and release several keys.
+7. Read status again.
+
+Expected logs:
+
+```text
+usb_midi: M32 OLED using direct OUT endpoint intf=2 ep=0x01
+usb_midi: M32 OLED direct addr=... intf=2 ep=0x01
+usb_midi: MIDI IN addr=... vid=0x17cc pid=0x1860 intf=1 ep=0x82
+```
+
+Expected `/status`:
+
+- `m32_oled.enabled` is true;
+- `m32_oled.device_connected` is true;
+- `m32_oled.endpoint_address` is `0x01`;
+- `m32_oled.frame_count` increases after splash and input feedback;
+- `m32_oled.feedback_count` increases after key, knob, CC, or pitch activity;
+- `m32_oled.transfer_active` eventually returns to false after input stops.
+
+Pass criteria:
+
+- splash appears on the M32 OLED;
+- knob/CC feedback appears on the M32 OLED;
+- key press/release feedback appears on the M32 OLED;
+- MIDI packets still arrive while OLED frames are sent;
+- no audio task logging or blocking is introduced.
+
+Validated on 2026-06-24 with SETUP D over WiFi at `192.168.31.147`:
+
+```text
+frame_count=23
+transfer_count=46
+feedback_count=37
+transfer_active=false
+```
+
+## 10. MIDI Parser Validation
 
 Setup: no hardware required.
 
@@ -420,7 +468,7 @@ Pass criteria:
 - parser does not depend on USB Host runtime;
 - parser does not depend on synth engine.
 
-## 10. MIDI to SynthEvent Validation
+## 11. MIDI to SynthEvent Validation
 
 Setup: SETUP D. Use SETUP B optionally for audio capture.
 
@@ -453,7 +501,7 @@ Failure indicators:
 - active count incorrect;
 - Cardputer keyboard broken after MIDI integration.
 
-## 11. Velocity Validation
+## 12. Velocity Validation
 
 Setup: SETUP D + SETUP B.
 
@@ -485,7 +533,7 @@ Pass criteria:
 - no severe clipping on high-velocity chords;
 - no regressions in NoteOff behavior.
 
-## 12. Sustain CC64 Validation
+## 13. Sustain CC64 Validation
 
 Setup: SETUP D + SETUP B. Add sustain pedal if available.
 
@@ -515,7 +563,7 @@ Pass criteria:
 - no stuck notes;
 - active count returns to zero after release and sustain off.
 
-## 13. Regression Checklist Before Merging
+## 14. Regression Checklist Before Merging
 
 Before merging any feature branch, verify:
 
@@ -531,7 +579,7 @@ Before merging any feature branch, verify:
 - setup used for manual tests documented;
 - known untested hardware items listed.
 
-## 14. Current Known Open Items
+## 15. Current Known Open Items
 
 Track these until closed:
 

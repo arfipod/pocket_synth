@@ -4,7 +4,7 @@ This document describes how `pocketsynth` uses a Native Instruments Komplete M32
 as a class-compliant USB MIDI input device.
 
 The goal is not to implement Native Instruments Komplete Kontrol, NKS, DAW
-integration, OLED control, browser integration, or proprietary behavior.
+integration, browser integration, or proprietary behavior.
 
 The goal is:
 
@@ -32,12 +32,14 @@ Supported or intended in the current development phase:
 - Sustain CC64.
 - Pitch bend scaling.
 - Modulation strip and general CC state caching.
+- Optional M32 OLED feedback for MIDI events in WiFi Dev builds.
 
 Not yet fully implemented:
 
 - all-notes-off recovery;
 - advanced CC mappings (LFOs, Filters);
 - Native Instruments proprietary controls.
+- proprietary HID input reports for non-MIDI buttons.
 
 ## Required Hardware Setup
 
@@ -100,6 +102,13 @@ usb_midi: client ready
 usb_midi: MIDI IN addr=3 vid=0x17cc pid=0x1860 intf=1 ep=0x82
 usb_midi: pkt #1 09 90 3c 40
 usb_midi: pkt #2 08 80 3c 10
+```
+
+When `POCKETSYNTH_ENABLE_M32_OLED=1`, expected OLED transport logs include:
+
+```text
+usb_midi: M32 OLED using direct OUT endpoint intf=2 ep=0x01
+usb_midi: M32 OLED direct addr=3 intf=2 ep=0x01
 ```
 
 ## Observed Komplete M32 Data
@@ -384,3 +393,20 @@ Mitigations:
 - USB MIDI Host is experimental and hardware-dependent.
 - USB Serial/JTAG should not be assumed available while using the same USB-C path
   as USB Host.
+
+## OLED Feedback Coexistence
+
+The M32 OLED transport is documented in `docs/komplete-m32-oled.md`.
+
+Important coexistence details:
+
+- MIDI uses interface 1 with bulk endpoints `0x02` and `0x82`; firmware reads
+  from `0x82`.
+- OLED uses HID interface 2, interrupt OUT endpoint `0x01`.
+- ESP-IDF public interface claiming cannot claim MIDI and the full HID interface
+  together on the tested SETUP D because HID also has interrupt IN endpoint
+  `0x81`.
+- Firmware therefore keeps MIDI on the public USB Host API and allocates only
+  OLED OUT endpoint `0x01` through the USBH layer.
+- WiFi Dev keeps `/status`, `/logs`, and OTA available; USB Host diagnostics are
+  disabled in `cardputer_adv_wifi_dev` to leave resources for MIDI + OLED.

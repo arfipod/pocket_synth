@@ -1,6 +1,7 @@
 #include "usb_midi_host.h"
 
 #include "boot_diagnostics.h"
+#include "m32_oled.h"
 #include "midi_message.h"
 #include "synth_config.h"
 #include "synth_events.h"
@@ -14,9 +15,11 @@
 #include "freertos/task.h"
 
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/queue.h>
 
 #ifndef POCKETSYNTH_ENABLE_USB_MIDI_HOST
 #define POCKETSYNTH_ENABLE_USB_MIDI_HOST 0
@@ -24,6 +27,45 @@
 
 #if POCKETSYNTH_ENABLE_USB_MIDI_HOST
 #include "usb/usb_host.h"
+
+extern "C" {
+typedef struct usbh_ep_handle_s* usbh_ep_handle_t;
+
+typedef enum {
+  USBH_EP_EVENT_NONE,
+  USBH_EP_EVENT_URB_DONE,
+  USBH_EP_EVENT_ERROR_XFER,
+  USBH_EP_EVENT_ERROR_URB_NOT_AVAIL,
+  USBH_EP_EVENT_ERROR_OVERFLOW,
+  USBH_EP_EVENT_ERROR_STALL,
+} usbh_ep_event_t;
+
+typedef bool (*usbh_ep_cb_t)(usbh_ep_handle_t ep_hdl, usbh_ep_event_t ep_event, void* arg, bool in_isr);
+
+typedef struct {
+  uint8_t bInterfaceNumber;
+  uint8_t bAlternateSetting;
+  uint8_t bEndpointAddress;
+  usbh_ep_cb_t ep_cb;
+  void* ep_cb_arg;
+  void* context;
+} usbh_ep_config_t;
+
+struct urb_s {
+  TAILQ_ENTRY(urb_s) tailq_entry;
+  void* hcd_ptr;
+  uint32_t hcd_var;
+  void* usb_host_client;
+  bool usb_host_inflight;
+  usb_transfer_t transfer;
+};
+typedef struct urb_s urb_t;
+
+esp_err_t usbh_ep_alloc(usb_device_handle_t dev_hdl, usbh_ep_config_t* ep_config, usbh_ep_handle_t* ep_hdl_ret);
+esp_err_t usbh_ep_free(usbh_ep_handle_t ep_hdl);
+esp_err_t usbh_ep_enqueue_urb(usbh_ep_handle_t ep_hdl, urb_t* urb);
+esp_err_t usbh_ep_dequeue_urb(usbh_ep_handle_t ep_hdl, urb_t** urb_ret);
+}
 #endif
 
 namespace pocketsynth {
@@ -32,7 +74,11 @@ namespace {
 constexpr const char* TAG = "usb_midi";
 constexpr size_t USB_MIDI_MAX_DEVICES = 4;
 constexpr size_t USB_MIDI_TRANSFER_BUFFER_SIZE = 64;
+constexpr size_t M32_OLED_REPORT_BYTES = 265;
 constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
+constexpr uint8_t USB_CLASS_HID_LOCAL = 0x03;
+constexpr uint16_t NATIVE_INSTRUMENTS_VID = 0x17cc;
+constexpr uint16_t KOMPLETE_KONTROL_M32_PID = 0x1860;
 
 struct UsbMidiInterfaceInfo {
   bool found;
@@ -226,10 +272,21 @@ struct TrackedUsbMidiDevice {
   uint8_t address;
   usb_device_handle_t handle;
   usb_transfer_t* transfer;
+  usb_transfer_t* oledTransfer;
+  usbh_ep_handle_t oledEndpoint;
   UsbMidiInterfaceInfo midi;
+  UsbMidiInterfaceInfo oled;
   bool connected;
   bool interfaceClaimed;
   bool transferInFlight;
+  bool oledInterfaceClaimed;
+  bool oledEndpointAllocated;
+  bool oledTransferInFlight;
+  bool oledHasCurrentFrame;
+  bool oledUseDirectEndpoint;
+  usbh_ep_event_t oledEndpointEvent;
+  uint8_t oledSegment;
+  M32OledFramebuffer oledFrame;
   uint16_t vid;
   uint16_t pid;
   uint8_t actions;
@@ -240,6 +297,8 @@ enum UsbMidiAction : uint8_t {
   UsbMidiActionClose = 1U << 1,
   UsbMidiActionSubmitTransfer = 1U << 2,
   UsbMidiActionClearEndpoint = 1U << 3,
+  UsbMidiActionSubmitOledTransfer = 1U << 4,
+  UsbMidiActionCompleteOledTransfer = 1U << 5,
 };
 
 TrackedUsbMidiDevice gTrackedDevices[USB_MIDI_MAX_DEVICES] = {};
@@ -343,15 +402,19 @@ void dispatchMidiMessage(const uint8_t* packet) {
   const MidiMessage message = parseUsbMidiPacket(packet);
   switch (message.type) {
     case MidiMessageType::NoteOn:
+      notifyM32OledMidiNote(message.note, true, message.velocity);
       sendMidiNoteEvent(message.note, true, message.velocity);
       break;
     case MidiMessageType::NoteOff:
+      notifyM32OledMidiNote(message.note, false, message.velocity);
       sendMidiNoteEvent(message.note, false, message.velocity);
       break;
     case MidiMessageType::ControlChange:
+      notifyM32OledControlChange(message.control, message.value);
       sendControlChangeEvent(message.control, message.value);
       break;
     case MidiMessageType::PitchBend:
+      notifyM32OledPitchBend(message.pitchBend);
       sendPitchBendEvent(message.pitchBend);
       break;
     case MidiMessageType::Unknown:
@@ -445,6 +508,17 @@ bool endpointIsSupportedMidiIn(const usb_ep_desc_t* endpointDesc) {
          (transferType == USB_BM_ATTRIBUTES_XFER_BULK || transferType == USB_BM_ATTRIBUTES_XFER_INT);
 }
 
+bool endpointIsSupportedHidOut(const usb_ep_desc_t* endpointDesc) {
+  if (endpointDesc == nullptr) {
+    return false;
+  }
+
+  const bool isOut = (endpointDesc->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) == 0;
+  const uint8_t transferType = endpointDesc->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK;
+  return isOut &&
+         (transferType == USB_BM_ATTRIBUTES_XFER_INT || transferType == USB_BM_ATTRIBUTES_XFER_BULK);
+}
+
 bool endpointIsBulk(const UsbMidiInterfaceInfo& info) {
   return (info.endpointAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_BULK;
 }
@@ -470,6 +544,12 @@ bool parseMidiStreamingInterface(const usb_config_desc_t* configDesc, UsbMidiInt
       if (currentIsMidiStreaming) {
         currentInterface.interfaceNumber = interfaceDesc->bInterfaceNumber;
         currentInterface.alternateSetting = interfaceDesc->bAlternateSetting;
+        addDiagnosticLog("I",
+                         TAG,
+                         "MIDI intf=%u alt=%u eps=%u",
+                         static_cast<unsigned int>(interfaceDesc->bInterfaceNumber),
+                         static_cast<unsigned int>(interfaceDesc->bAlternateSetting),
+                         static_cast<unsigned int>(interfaceDesc->bNumEndpoints));
       }
       continue;
     }
@@ -481,6 +561,14 @@ bool parseMidiStreamingInterface(const usb_config_desc_t* configDesc, UsbMidiInt
     }
 
     const usb_ep_desc_t* endpointDesc = reinterpret_cast<const usb_ep_desc_t*>(descriptor);
+    addDiagnosticLog("I",
+                     TAG,
+                     "MIDI ep intf=%u addr=0x%02x attr=0x%02x mps=%u intv=%u",
+                     static_cast<unsigned int>(currentInterface.interfaceNumber),
+                     static_cast<unsigned int>(endpointDesc->bEndpointAddress),
+                     static_cast<unsigned int>(endpointDesc->bmAttributes),
+                     static_cast<unsigned int>(endpointMaxPacketSize(endpointDesc)),
+                     static_cast<unsigned int>(endpointDesc->bInterval));
     if (!endpointIsSupportedMidiIn(endpointDesc)) {
       continue;
     }
@@ -496,6 +584,66 @@ bool parseMidiStreamingInterface(const usb_config_desc_t* configDesc, UsbMidiInt
     if (endpointIsBulk(currentInterface)) {
       return true;
     }
+  }
+
+  return out->found;
+}
+
+bool parseM32HidOutInterface(const usb_config_desc_t* configDesc, UsbMidiInterfaceInfo* out) {
+  if (configDesc == nullptr || out == nullptr) {
+    return false;
+  }
+
+  *out = {};
+  bool currentIsHid = false;
+  UsbMidiInterfaceInfo currentInterface = {};
+
+  int offset = 0;
+  const usb_standard_desc_t* descriptor = reinterpret_cast<const usb_standard_desc_t*>(configDesc);
+  while ((descriptor = usb_parse_next_descriptor(descriptor, configDesc->wTotalLength, &offset)) != nullptr) {
+    if (descriptor->bDescriptorType == USB_B_DESCRIPTOR_TYPE_INTERFACE &&
+        descriptor->bLength >= USB_INTF_DESC_SIZE) {
+      const usb_intf_desc_t* interfaceDesc = reinterpret_cast<const usb_intf_desc_t*>(descriptor);
+      currentIsHid = interfaceDesc->bInterfaceClass == USB_CLASS_HID_LOCAL;
+      currentInterface = {};
+      if (currentIsHid) {
+        currentInterface.interfaceNumber = interfaceDesc->bInterfaceNumber;
+        currentInterface.alternateSetting = interfaceDesc->bAlternateSetting;
+        addDiagnosticLog("I",
+                         TAG,
+                         "M32 HID intf=%u alt=%u eps=%u",
+                         static_cast<unsigned int>(interfaceDesc->bInterfaceNumber),
+                         static_cast<unsigned int>(interfaceDesc->bAlternateSetting),
+                         static_cast<unsigned int>(interfaceDesc->bNumEndpoints));
+      }
+      continue;
+    }
+
+    if (!currentIsHid ||
+        descriptor->bDescriptorType != USB_B_DESCRIPTOR_TYPE_ENDPOINT ||
+        descriptor->bLength < USB_EP_DESC_SIZE) {
+      continue;
+    }
+
+    const usb_ep_desc_t* endpointDesc = reinterpret_cast<const usb_ep_desc_t*>(descriptor);
+    addDiagnosticLog("I",
+                     TAG,
+                     "M32 HID ep intf=%u addr=0x%02x attr=0x%02x mps=%u intv=%u",
+                     static_cast<unsigned int>(currentInterface.interfaceNumber),
+                     static_cast<unsigned int>(endpointDesc->bEndpointAddress),
+                     static_cast<unsigned int>(endpointDesc->bmAttributes),
+                     static_cast<unsigned int>(endpointMaxPacketSize(endpointDesc)),
+                     static_cast<unsigned int>(endpointDesc->bInterval));
+    if (!endpointIsSupportedHidOut(endpointDesc)) {
+      continue;
+    }
+
+    currentInterface.found = true;
+    currentInterface.endpointAddress = endpointDesc->bEndpointAddress;
+    currentInterface.endpointAttributes = endpointDesc->bmAttributes;
+    currentInterface.endpointMaxPacketSize = endpointMaxPacketSize(endpointDesc);
+    *out = currentInterface;
+    return true;
   }
 
   return out->found;
@@ -576,6 +724,206 @@ void submitMidiInTransfer(TrackedUsbMidiDevice* device) {
   }
 }
 
+bool isKompleteM32(const TrackedUsbMidiDevice& device) {
+  return device.vid == NATIVE_INSTRUMENTS_VID && device.pid == KOMPLETE_KONTROL_M32_PID;
+}
+
+urb_t* transferToUrb(usb_transfer_t* transfer) {
+  if (transfer == nullptr) {
+    return nullptr;
+  }
+  return reinterpret_cast<urb_t*>(reinterpret_cast<uint8_t*>(transfer) - offsetof(urb_t, transfer));
+}
+
+usb_transfer_status_t statusFromUsbHEvent(usbh_ep_event_t event) {
+  switch (event) {
+    case USBH_EP_EVENT_URB_DONE:
+      return USB_TRANSFER_STATUS_COMPLETED;
+    case USBH_EP_EVENT_ERROR_STALL:
+      return USB_TRANSFER_STATUS_STALL;
+    case USBH_EP_EVENT_ERROR_OVERFLOW:
+      return USB_TRANSFER_STATUS_OVERFLOW;
+    case USBH_EP_EVENT_ERROR_URB_NOT_AVAIL:
+    case USBH_EP_EVENT_ERROR_XFER:
+    default:
+      return USB_TRANSFER_STATUS_ERROR;
+  }
+}
+
+void handleM32OledTransferResult(TrackedUsbMidiDevice* midiDevice, usb_transfer_status_t status) {
+  if (midiDevice == nullptr) {
+    return;
+  }
+
+  midiDevice->oledTransferInFlight = false;
+  publishM32OledTransportActive(false, ESP_OK);
+
+  if (status == USB_TRANSFER_STATUS_COMPLETED) {
+    if (midiDevice->oledSegment == 0) {
+      midiDevice->oledSegment = 1;
+      midiDevice->actions |= UsbMidiActionSubmitOledTransfer;
+      gHasPendingActions = true;
+      return;
+    }
+    midiDevice->oledHasCurrentFrame = false;
+    publishM32OledTransportFrameSent();
+    return;
+  }
+
+  ESP_LOGW(TAG, "M32 OLED OUT status=%s", transferStatusToString(status));
+  addDiagnosticLog("W", TAG, "M32 OLED OUT status=%s", transferStatusToString(status));
+  publishM32OledTransportError("transfer_status", ESP_FAIL);
+
+  if (status == USB_TRANSFER_STATUS_NO_DEVICE ||
+      status == USB_TRANSFER_STATUS_CANCELED) {
+    midiDevice->actions |= UsbMidiActionClose;
+  } else {
+    midiDevice->oledHasCurrentFrame = false;
+  }
+  gHasPendingActions = true;
+}
+
+bool m32OledDirectEndpointCallback(usbh_ep_handle_t, usbh_ep_event_t epEvent, void* userArg, bool) {
+  TrackedUsbMidiDevice* device = static_cast<TrackedUsbMidiDevice*>(userArg);
+  if (device == nullptr) {
+    return false;
+  }
+  device->oledEndpointEvent = epEvent;
+  device->actions |= UsbMidiActionCompleteOledTransfer;
+  gHasPendingActions = true;
+  return false;
+}
+
+void configureM32OledTransferCallback(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || device->oledTransfer == nullptr) {
+    return;
+  }
+
+  device->oledTransfer->callback = [](usb_transfer_t* transfer) {
+    if (transfer == nullptr || transfer->context == nullptr) {
+      return;
+    }
+
+    TrackedUsbMidiDevice* midiDevice = static_cast<TrackedUsbMidiDevice*>(transfer->context);
+    handleM32OledTransferResult(midiDevice, transfer->status);
+  };
+  device->oledTransfer->context = device;
+}
+
+esp_err_t allocateM32OledDirectEndpoint(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || device->handle == nullptr || !device->oled.found) {
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  usbh_ep_config_t config = {};
+  config.bInterfaceNumber = device->oled.interfaceNumber;
+  config.bAlternateSetting = device->oled.alternateSetting;
+  config.bEndpointAddress = device->oled.endpointAddress;
+  config.ep_cb = m32OledDirectEndpointCallback;
+  config.ep_cb_arg = device;
+  config.context = device;
+
+  const esp_err_t err = usbh_ep_alloc(device->handle, &config, &device->oledEndpoint);
+  if (err == ESP_OK) {
+    device->oledEndpointAllocated = true;
+    device->oledUseDirectEndpoint = true;
+  }
+  return err;
+}
+
+void completeM32OledDirectTransfer(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || !device->oledEndpointAllocated || device->oledEndpoint == nullptr) {
+    return;
+  }
+
+  urb_t* urb = nullptr;
+  const esp_err_t err = usbh_ep_dequeue_urb(device->oledEndpoint, &urb);
+  if (err != ESP_OK || urb == nullptr) {
+    addDiagnosticLog("W", TAG, "M32 OLED direct dequeue failed: %s", esp_err_to_name(err));
+    return;
+  }
+
+  urb->usb_host_inflight = false;
+  usb_transfer_status_t status = urb->transfer.status;
+  if (device->oledEndpointEvent != USBH_EP_EVENT_URB_DONE) {
+    status = statusFromUsbHEvent(device->oledEndpointEvent);
+  }
+  handleM32OledTransferResult(device, status);
+}
+
+void submitM32OledTransfer(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || device->handle == nullptr || device->oledTransfer == nullptr ||
+      (!device->oledInterfaceClaimed && !device->oledUseDirectEndpoint) ||
+      device->oledTransferInFlight || !device->oledHasCurrentFrame) {
+    return;
+  }
+
+  const uint16_t page = device->oledSegment == 0 ? 0 : 2;
+  uint8_t* report = device->oledTransfer->data_buffer;
+
+  esp_err_t err = writeM32OledRegionReport(report,
+                                           M32_OLED_REPORT_BYTES,
+                                           device->oledFrame,
+                                           page);
+  if (err != ESP_OK) {
+    addDiagnosticLog("W", TAG, "M32 OLED report build failed: %s", esp_err_to_name(err));
+    publishM32OledTransportError("report_error", err);
+    device->oledHasCurrentFrame = false;
+    return;
+  }
+
+  device->oledTransfer->device_handle = device->handle;
+  device->oledTransfer->bEndpointAddress = device->oled.endpointAddress;
+  device->oledTransfer->num_bytes = M32_OLED_REPORT_BYTES;
+  device->oledTransfer->timeout_ms = 0;
+
+  if (device->oledUseDirectEndpoint) {
+    urb_t* urb = transferToUrb(device->oledTransfer);
+    if (urb == nullptr) {
+      err = ESP_ERR_INVALID_ARG;
+    } else {
+      urb->usb_host_inflight = true;
+      err = usbh_ep_enqueue_urb(device->oledEndpoint, urb);
+      if (err != ESP_OK) {
+        urb->usb_host_inflight = false;
+      }
+    }
+  } else {
+    err = usb_host_transfer_submit(device->oledTransfer);
+  }
+  if (err == ESP_OK || err == ESP_ERR_NOT_FINISHED) {
+    device->oledTransferInFlight = true;
+    publishM32OledTransportActive(true, ESP_OK);
+    return;
+  }
+
+  ESP_LOGW(TAG, "M32 OLED OUT submit failed: %s", esp_err_to_name(err));
+  addDiagnosticLog("W", TAG, "M32 OLED OUT submit failed: %s", esp_err_to_name(err));
+  publishM32OledTransportActive(false, err);
+  if (err == ESP_ERR_INVALID_STATE || err == ESP_ERR_NOT_FOUND || err == ESP_ERR_NOT_SUPPORTED) {
+    device->oledHasCurrentFrame = false;
+    device->oledUseDirectEndpoint = false;
+    publishM32OledTransportError("oled_disabled", err);
+    addDiagnosticLog("W", TAG, "M32 OLED disabled, MIDI remains active");
+  }
+}
+
+void maybeStartNextM32OledFrame(TrackedUsbMidiDevice* device) {
+  if (device == nullptr || !device->connected ||
+      (!device->oledInterfaceClaimed && !device->oledUseDirectEndpoint) ||
+      device->oledTransferInFlight || device->oledHasCurrentFrame) {
+    return;
+  }
+
+  if (!takeNextM32OledFrame(&device->oledFrame)) {
+    return;
+  }
+
+  device->oledHasCurrentFrame = true;
+  device->oledSegment = 0;
+  submitM32OledTransfer(device);
+}
+
 void cleanupDevice(TrackedUsbMidiDevice* device) {
   if (device == nullptr) {
     return;
@@ -584,10 +932,36 @@ void cleanupDevice(TrackedUsbMidiDevice* device) {
   const bool wasConnected = device->connected;
   const uint8_t address = device->address;
 
-  if (device->transferInFlight) {
+  if (device->transferInFlight || device->oledTransferInFlight) {
     device->actions |= UsbMidiActionClose;
     gHasPendingActions = true;
     return;
+  }
+
+  if (device->oledInterfaceClaimed && device->handle != nullptr) {
+    const esp_err_t releaseErr = usb_host_interface_release(gClientHandle,
+                                                            device->handle,
+                                                            device->oled.interfaceNumber);
+    if (releaseErr != ESP_OK) {
+      ESP_LOGW(TAG,
+               "M32 OLED interface release failed addr=%u: %s",
+               static_cast<unsigned int>(address),
+               esp_err_to_name(releaseErr));
+      addDiagnosticLog("W", TAG, "M32 OLED release failed: %s", esp_err_to_name(releaseErr));
+      publishM32OledTransportError("release_error", releaseErr);
+    }
+    device->oledInterfaceClaimed = false;
+  }
+
+  if (device->oledEndpointAllocated && device->oledEndpoint != nullptr) {
+    const esp_err_t freeErr = usbh_ep_free(device->oledEndpoint);
+    if (freeErr != ESP_OK) {
+      ESP_LOGW(TAG, "M32 OLED direct endpoint free failed: %s", esp_err_to_name(freeErr));
+      addDiagnosticLog("W", TAG, "M32 OLED direct free failed: %s", esp_err_to_name(freeErr));
+      publishM32OledTransportError("endpoint_free_error", freeErr);
+    }
+    device->oledEndpoint = nullptr;
+    device->oledEndpointAllocated = false;
   }
 
   if (device->interfaceClaimed && device->handle != nullptr) {
@@ -603,6 +977,16 @@ void cleanupDevice(TrackedUsbMidiDevice* device) {
       publishError("release_error", releaseErr);
     }
     device->interfaceClaimed = false;
+  }
+
+  if (device->oledTransfer != nullptr) {
+    const esp_err_t freeErr = usb_host_transfer_free(device->oledTransfer);
+    if (freeErr != ESP_OK) {
+      ESP_LOGW(TAG, "M32 OLED transfer free failed: %s", esp_err_to_name(freeErr));
+      addDiagnosticLog("W", TAG, "M32 OLED transfer free failed: %s", esp_err_to_name(freeErr));
+      publishM32OledTransportError("free_error", freeErr);
+    }
+    device->oledTransfer = nullptr;
   }
 
   if (device->handle != nullptr) {
@@ -632,6 +1016,9 @@ void cleanupDevice(TrackedUsbMidiDevice* device) {
     ESP_LOGI(TAG, "USB MIDI disconnected addr=%u", static_cast<unsigned int>(address));
     addDiagnosticLog("I", TAG, "disconnected addr=%u", static_cast<unsigned int>(address));
     publishDisconnected(address);
+    if (isKompleteM32(*device)) {
+      publishM32OledTransportDisconnected(address);
+    }
   }
 
   resetTrackedDevice(device);
@@ -769,6 +1156,104 @@ void openDevice(TrackedUsbMidiDevice* device) {
   };
   device->transfer->context = device;
 
+  if (isM32OledBuildEnabled() && isKompleteM32(*device)) {
+    if (!parseM32HidOutInterface(configDesc, &device->oled)) {
+      ESP_LOGW(TAG, "Komplete M32 HID OUT interface not found");
+      addDiagnosticLog("W", TAG, "M32 HID OUT not found");
+      publishM32OledTransportError("hid_not_found", ESP_ERR_NOT_FOUND);
+    } else {
+      addDiagnosticLog("I",
+                       TAG,
+                       "M32 OLED candidate intf=%u alt=%u ep=0x%02x attr=0x%02x mps=%u",
+                       static_cast<unsigned int>(device->oled.interfaceNumber),
+                       static_cast<unsigned int>(device->oled.alternateSetting),
+                       static_cast<unsigned int>(device->oled.endpointAddress),
+                       static_cast<unsigned int>(device->oled.endpointAttributes),
+                       static_cast<unsigned int>(device->oled.endpointMaxPacketSize));
+      err = ESP_OK;
+      if (!device->oledInterfaceClaimed) {
+        err = usb_host_interface_claim(gClientHandle,
+                                       device->handle,
+                                       device->oled.interfaceNumber,
+                                       device->oled.alternateSetting);
+      }
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG,
+                 "M32 OLED HID interface claim failed intf=%u: %s",
+                 static_cast<unsigned int>(device->oled.interfaceNumber),
+                 esp_err_to_name(err));
+        addDiagnosticLog("W", TAG, "M32 OLED claim failed: %s", esp_err_to_name(err));
+        publishM32OledTransportError("claim_error", err);
+        err = allocateM32OledDirectEndpoint(device);
+        if (err != ESP_OK) {
+          addDiagnosticLog("W", TAG, "M32 OLED direct endpoint failed: %s", esp_err_to_name(err));
+        } else {
+          addDiagnosticLog("I",
+                           TAG,
+                           "M32 OLED using direct OUT endpoint intf=%u ep=0x%02x",
+                           static_cast<unsigned int>(device->oled.interfaceNumber),
+                           static_cast<unsigned int>(device->oled.endpointAddress));
+          ESP_LOGI(TAG,
+                   "M32 OLED using direct OUT endpoint intf=%u ep=0x%02x",
+                   static_cast<unsigned int>(device->oled.interfaceNumber),
+                   static_cast<unsigned int>(device->oled.endpointAddress));
+        }
+      } else {
+        device->oledInterfaceClaimed = true;
+      }
+
+      if (device->oledInterfaceClaimed || device->oledUseDirectEndpoint) {
+        err = usb_host_transfer_alloc(M32_OLED_REPORT_BYTES, 0, &device->oledTransfer);
+        if (err != ESP_OK || device->oledTransfer == nullptr) {
+          ESP_LOGW(TAG, "M32 OLED transfer alloc failed: %s", esp_err_to_name(err));
+          addDiagnosticLog("W", TAG, "M32 OLED alloc failed: %s", esp_err_to_name(err));
+          publishM32OledTransportError("alloc_error", err != ESP_OK ? err : ESP_ERR_NO_MEM);
+          if (device->oledInterfaceClaimed) {
+            const esp_err_t releaseErr = usb_host_interface_release(gClientHandle,
+                                                                    device->handle,
+                                                                    device->oled.interfaceNumber);
+            if (releaseErr != ESP_OK) {
+              addDiagnosticLog("W", TAG, "M32 OLED release after alloc failed: %s", esp_err_to_name(releaseErr));
+            }
+          }
+          device->oledInterfaceClaimed = false;
+          device->oledUseDirectEndpoint = false;
+        } else {
+          configureM32OledTransferCallback(device);
+
+          const uint8_t statusEndpoint = device->oled.endpointAddress;
+          const uint16_t statusMps = device->oled.endpointMaxPacketSize;
+          ESP_LOGI(TAG,
+                   "Komplete M32 OLED %s addr=%u intf=%u ep=0x%02x mps=%u",
+                   device->oledUseDirectEndpoint ? "HID OUT direct" : "HID OUT",
+                   static_cast<unsigned int>(device->address),
+                   static_cast<unsigned int>(device->oled.interfaceNumber),
+                   static_cast<unsigned int>(statusEndpoint),
+                   static_cast<unsigned int>(statusMps));
+          addDiagnosticLog("I",
+                           TAG,
+                           "M32 OLED %s addr=%u intf=%u ep=0x%02x",
+                           device->oledUseDirectEndpoint ? "direct" : "out",
+                           static_cast<unsigned int>(device->address),
+                           static_cast<unsigned int>(device->oled.interfaceNumber),
+                           static_cast<unsigned int>(statusEndpoint));
+          publishM32OledTransportConnected(device->address,
+                                           device->oled.interfaceNumber,
+                                           device->oled.alternateSetting,
+                                           statusEndpoint,
+                                           statusMps,
+                                           device->vid,
+                                           device->pid,
+                                           device->oledInterfaceClaimed);
+          sendM32OledText("POCKETSYNTH",
+                          "M32 OLED READY",
+                          device->oledUseDirectEndpoint ? "USB HID DIRECT" : "USB HID OUT",
+                          0);
+        }
+      }
+    }
+  }
+
   logDescriptorMatch(*device);
   publishConnected(*device);
   device->actions |= UsbMidiActionSubmitTransfer;
@@ -813,6 +1298,12 @@ void processPendingActions() {
     }
     if ((actions & UsbMidiActionSubmitTransfer) != 0) {
       submitMidiInTransfer(&device);
+    }
+    if ((actions & UsbMidiActionSubmitOledTransfer) != 0) {
+      submitM32OledTransfer(&device);
+    }
+    if ((actions & UsbMidiActionCompleteOledTransfer) != 0) {
+      completeM32OledDirectTransfer(&device);
     }
   }
 }
@@ -880,6 +1371,10 @@ void usbMidiHostTask(void*) {
     if (gHasPendingActions) {
       processPendingActions();
       continue;
+    }
+
+    for (auto& device : gTrackedDevices) {
+      maybeStartNextM32OledFrame(&device);
     }
 
     err = usb_host_client_handle_events(gClientHandle, pdMS_TO_TICKS(500));

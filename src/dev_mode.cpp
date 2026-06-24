@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "boot_diagnostics.h"
+#include "m32_oled.h"
 #include "usb_host_diag.h"
 #include "usb_midi_host.h"
 #include "wifi_credentials.h"
@@ -72,6 +73,9 @@ esp_err_t statusHandler(httpd_req_t* req) {
   BootDiagnosticsSnapshot diagnostics = {};
   copyBootDiagnostics(&diagnostics);
 
+  char m32OledStatus[2048] = {};
+  writeM32OledStatusJson(m32OledStatus, sizeof(m32OledStatus));
+
   char* response = gStatusResponse;
   response[0] = '\0';
   const int written = snprintf(
@@ -96,7 +100,9 @@ esp_err_t statusHandler(httpd_req_t* req) {
       "\"codec\":\"%s\""
       "},"
       "\"usb_midi_enabled\":%s,"
-      "\"usb_host_diag_enabled\":%s"
+      "\"usb_host_diag_enabled\":%s,"
+      "\"m32_oled_enabled\":%s,"
+      "\"m32_oled\":%s"
       "}\n",
       appDescription != nullptr ? appDescription->project_name : "unknown",
       appDescription != nullptr ? appDescription->version : "unknown",
@@ -114,7 +120,9 @@ esp_err_t statusHandler(httpd_req_t* req) {
       esp_err_to_name(diagnostics.i2sResult),
       esp_err_to_name(diagnostics.codecResult),
       isUsbMidiHostBuildEnabled() ? "true" : "false",
-      isUsbHostDiagnosticsBuildEnabled() ? "true" : "false");
+      isUsbHostDiagnosticsBuildEnabled() ? "true" : "false",
+      isM32OledBuildEnabled() ? "true" : "false",
+      m32OledStatus);
 
   if (written <= 0 || written >= static_cast<int>(STATUS_RESPONSE_SIZE)) {
     httpd_resp_set_status(req, "500 Internal Server Error");

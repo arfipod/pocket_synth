@@ -56,3 +56,66 @@ now ignores these before logging or event conversion.
 - Note On/Off, Pitch Bend, and Control Change packets are correctly captured, converted to `SynthEvent`, and handled by the synth engine.
 - Velocity, Sustain (CC 64), and Pitch Bend are fully integrated in the audio path.
 - The 8 touch-sensitive knobs send generic continuous CCs (14, 16, 19, 20, 21, etc.) which are now cached in `SynthAudioState`.
+
+## OLED and Composite Endpoint Observations
+
+Date: 2026-06-24
+
+Sources:
+
+- `lib/pocketsynth_m32_oled_library/CaptureKomplete.pcapng`
+- `tools/m32-oled-webhid-v2.zip`
+- SETUP D hardware test over WiFi Dev Mode at `192.168.31.147`
+
+Observed OLED reports in the USBPcap capture:
+
+```text
+Top half:    E0 00 00 00 00 80 00 02 00 [256 bytes]
+Bottom half: E0 00 00 02 00 80 00 02 00 [256 bytes]
+```
+
+The USBPcap record around these frames shows interrupt OUT endpoint `0x01` and
+data length `0x0109` (265 bytes). The WebHID reference sends this as
+`sendReport(0xE0, report.slice(1))`; the OS prepends the report ID.
+
+Observed descriptors from firmware logs:
+
+```text
+MIDI intf=1 alt=0 eps=2
+MIDI ep intf=1 addr=0x02 attr=0x02 mps=64 intv=0
+MIDI ep intf=1 addr=0x82 attr=0x02 mps=64 intv=0
+M32 HID intf=2 alt=0 eps=2
+M32 HID ep intf=2 addr=0x81 attr=0x03 mps=64 intv=1
+M32 HID ep intf=2 addr=0x01 attr=0x03 mps=64 intv=10
+```
+
+Important host behavior:
+
+- Claiming HID interface 2 before MIDI succeeds.
+- Claiming MIDI after the full HID interface fails with `ESP_ERR_NOT_SUPPORTED`.
+- Claiming MIDI first succeeds.
+- Claiming full HID after MIDI fails with `ESP_ERR_NOT_SUPPORTED`.
+- Submitting to `0x01` without registering the endpoint fails with
+  `ESP_ERR_NOT_FOUND`.
+- `SET_REPORT` on control endpoint stalls for this OLED path.
+
+Working firmware behavior:
+
+```text
+usb_midi: M32 OLED claim failed: ESP_ERR_NOT_SUPPORTED
+usb_midi: M32 OLED using direct OUT endpoint intf=2 ep=0x01
+usb_midi: M32 OLED direct addr=3 intf=2 ep=0x01
+usb_midi: MIDI IN addr=3 vid=0x17cc pid=0x1860 intf=1 ep=0x82
+```
+
+Validated status after knob/button activity:
+
+```text
+frame_count=23
+transfer_count=46
+feedback_count=37
+transfer_active=false
+```
+
+This confirms MIDI input and OLED feedback can run together when firmware
+allocates only the HID OUT endpoint needed for OLED writes.
