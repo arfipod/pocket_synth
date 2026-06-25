@@ -12,7 +12,13 @@
 #include "synth_types.h"
 #include "usb_host_diag.h"
 #include "usb_midi_host.h"
+
+#if __has_include("wifi_credentials.h")
 #include "wifi_credentials.h"
+#define POCKETSYNTH_HAS_LOCAL_WIFI_CREDENTIALS 1
+#else
+#define POCKETSYNTH_HAS_LOCAL_WIFI_CREDENTIALS 0
+#endif
 
 #include "esp_app_format.h"
 #include "esp_flash.h"
@@ -38,12 +44,18 @@ constexpr const char* DEV_AP_PASSWORD = "pocketsynth";
 constexpr const char* DEV_OTA_TOKEN = "pocketsynth-dev";
 constexpr uint8_t DEV_AP_CHANNEL = 6;
 constexpr uint8_t DEV_AP_MAX_CONNECTIONS = 2;
-#if defined(WIFI_SSID2) && defined(WIFI_PASSWORD_2)
+#if POCKETSYNTH_HAS_LOCAL_WIFI_CREDENTIALS && defined(WIFI_SSID2) && defined(WIFI_PASSWORD_2)
 constexpr const char* DEV_STA_SSID = WIFI_SSID2;
 constexpr const char* DEV_STA_PASSWORD = WIFI_PASSWORD_2;
-#else
+constexpr bool DEV_STA_HAS_CREDENTIALS = true;
+#elif POCKETSYNTH_HAS_LOCAL_WIFI_CREDENTIALS && defined(WIFI_SSID) && defined(WIFI_PASSWORD)
 constexpr const char* DEV_STA_SSID = WIFI_SSID;
 constexpr const char* DEV_STA_PASSWORD = WIFI_PASSWORD;
+constexpr bool DEV_STA_HAS_CREDENTIALS = true;
+#else
+constexpr const char* DEV_STA_SSID = "";
+constexpr const char* DEV_STA_PASSWORD = "";
+constexpr bool DEV_STA_HAS_CREDENTIALS = false;
 #endif
 constexpr size_t OTA_RECV_BUFFER_SIZE = 1024;
 constexpr TickType_t OTA_REBOOT_DELAY = pdMS_TO_TICKS(800);
@@ -397,9 +409,11 @@ esp_err_t initializeNvsForWifi() {
 
 void wifiEventHandler(void*, esp_event_base_t eventBase, int32_t eventId, void* eventData) {
   if (eventBase == WIFI_EVENT && eventId == WIFI_EVENT_STA_DISCONNECTED) {
-    ESP_LOGW(TAG, "WiFi Dev Mode STA disconnected; reconnecting to %s", DEV_STA_SSID);
-    addDiagnosticLog("W", TAG, "STA disconnected; reconnecting to %s", DEV_STA_SSID);
-    esp_wifi_connect();
+    if (DEV_STA_HAS_CREDENTIALS) {
+      ESP_LOGW(TAG, "WiFi Dev Mode STA disconnected; reconnecting to %s", DEV_STA_SSID);
+      addDiagnosticLog("W", TAG, "STA disconnected; reconnecting to %s", DEV_STA_SSID);
+      esp_wifi_connect();
+    }
     return;
   }
 
@@ -431,9 +445,11 @@ esp_err_t startDevWifi() {
     return ESP_FAIL;
   }
 
-  esp_netif_t* staNetif = esp_netif_create_default_wifi_sta();
-  if (staNetif == nullptr) {
-    return ESP_FAIL;
+  if (DEV_STA_HAS_CREDENTIALS) {
+    esp_netif_t* staNetif = esp_netif_create_default_wifi_sta();
+    if (staNetif == nullptr) {
+      return ESP_FAIL;
+    }
   }
 
   wifi_init_config_t initConfig = WIFI_INIT_CONFIG_DEFAULT();
@@ -442,14 +458,24 @@ esp_err_t startDevWifi() {
     return err;
   }
 
-  err = esp_event_handler_instance_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifiEventHandler, nullptr, nullptr);
-  if (err != ESP_OK) {
-    return err;
-  }
+  if (DEV_STA_HAS_CREDENTIALS) {
+    err = esp_event_handler_instance_register(WIFI_EVENT,
+                                              WIFI_EVENT_STA_DISCONNECTED,
+                                              wifiEventHandler,
+                                              nullptr,
+                                              nullptr);
+    if (err != ESP_OK) {
+      return err;
+    }
 
-  err = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifiEventHandler, nullptr, nullptr);
-  if (err != ESP_OK) {
-    return err;
+    err = esp_event_handler_instance_register(IP_EVENT,
+                                              IP_EVENT_STA_GOT_IP,
+                                              wifiEventHandler,
+                                              nullptr,
+                                              nullptr);
+    if (err != ESP_OK) {
+      return err;
+    }
   }
 
   wifi_config_t apConfig = {};
@@ -466,17 +492,19 @@ esp_err_t startDevWifi() {
   apConfig.ap.pmf_cfg.required = false;
 
   wifi_config_t staConfig = {};
-  std::strncpy(reinterpret_cast<char*>(staConfig.sta.ssid),
-               DEV_STA_SSID,
-               sizeof(staConfig.sta.ssid));
-  std::strncpy(reinterpret_cast<char*>(staConfig.sta.password),
-               DEV_STA_PASSWORD,
-               sizeof(staConfig.sta.password));
-  staConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-  staConfig.sta.pmf_cfg.capable = true;
-  staConfig.sta.pmf_cfg.required = false;
+  if (DEV_STA_HAS_CREDENTIALS) {
+    std::strncpy(reinterpret_cast<char*>(staConfig.sta.ssid),
+                 DEV_STA_SSID,
+                 sizeof(staConfig.sta.ssid));
+    std::strncpy(reinterpret_cast<char*>(staConfig.sta.password),
+                 DEV_STA_PASSWORD,
+                 sizeof(staConfig.sta.password));
+    staConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    staConfig.sta.pmf_cfg.capable = true;
+    staConfig.sta.pmf_cfg.required = false;
+  }
 
-  err = esp_wifi_set_mode(WIFI_MODE_APSTA);
+  err = esp_wifi_set_mode(DEV_STA_HAS_CREDENTIALS ? WIFI_MODE_APSTA : WIFI_MODE_AP);
   if (err != ESP_OK) {
     return err;
   }
@@ -486,9 +514,11 @@ esp_err_t startDevWifi() {
     return err;
   }
 
-  err = esp_wifi_set_config(WIFI_IF_STA, &staConfig);
-  if (err != ESP_OK) {
-    return err;
+  if (DEV_STA_HAS_CREDENTIALS) {
+    err = esp_wifi_set_config(WIFI_IF_STA, &staConfig);
+    if (err != ESP_OK) {
+      return err;
+    }
   }
 
   err = esp_wifi_start();
@@ -496,10 +526,15 @@ esp_err_t startDevWifi() {
     return err;
   }
 
-  err = esp_wifi_connect();
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "WiFi Dev Mode STA connect start failed: %s", esp_err_to_name(err));
-    addDiagnosticLog("W", TAG, "STA connect failed: %s", esp_err_to_name(err));
+  if (DEV_STA_HAS_CREDENTIALS) {
+    err = esp_wifi_connect();
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "WiFi Dev Mode STA connect start failed: %s", esp_err_to_name(err));
+      addDiagnosticLog("W", TAG, "STA connect failed: %s", esp_err_to_name(err));
+    }
+  } else {
+    ESP_LOGI(TAG, "WiFi Dev Mode AP-only: no local station credentials");
+    addDiagnosticLog("I", TAG, "AP-only mode; no station credentials");
   }
 
   return ESP_OK;
@@ -601,8 +636,12 @@ esp_err_t initializeDevMode() {
   ESP_LOGI(TAG, "WiFi Dev Mode status endpoint ready at http://192.168.4.1/status");
   ESP_LOGI(TAG, "WiFi Dev Mode OTA endpoint ready at http://192.168.4.1/ota");
   ESP_LOGI(TAG, "WiFi Dev Mode logs endpoint ready at http://192.168.4.1/logs");
-  ESP_LOGI(TAG, "WiFi Dev Mode AP SSID=%s password=%s", DEV_AP_SSID, DEV_AP_PASSWORD);
-  ESP_LOGI(TAG, "WiFi Dev Mode STA connecting to SSID=%s", DEV_STA_SSID);
+  ESP_LOGI(TAG, "WiFi Dev Mode AP SSID=%s", DEV_AP_SSID);
+  if (DEV_STA_HAS_CREDENTIALS) {
+    ESP_LOGI(TAG, "WiFi Dev Mode STA connecting to SSID=%s", DEV_STA_SSID);
+  } else {
+    ESP_LOGI(TAG, "WiFi Dev Mode STA disabled; AP-only diagnostics available");
+  }
   addDiagnosticLog("I", TAG, "WiFi Dev Mode endpoints ready");
   return ESP_OK;
 #else

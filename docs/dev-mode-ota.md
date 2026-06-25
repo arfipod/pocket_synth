@@ -154,8 +154,9 @@ include/wifi_credentials.h
 
 This file must remain untracked and ignored by Git.
 
-The firmware should compile even when this file is absent. If local credentials
-are missing, AP-only Dev Mode should still work.
+The firmware compiles even when this file is absent. If local credentials are
+missing, AP-only Dev Mode still starts and exposes diagnostics at
+`192.168.4.1`.
 
 Recommended future behavior:
 
@@ -304,7 +305,8 @@ Use this carefully. A broken Dev Mode image may require serial recovery.
 
 ## Rollback
 
-Rollback should be enabled for OTA builds.
+Rollback is enabled for the OTA build configurations in
+`sdkconfig.cardputer_adv_ota` and `sdkconfig.cardputer_adv_wifi_dev`.
 
 The boot validation flow should be:
 
@@ -379,9 +381,8 @@ If needed, hold the Cardputer ADV boot button while resetting or plugging in.
 
 The following items should be closed:
 
-- Dev Mode should compile when `include/wifi_credentials.h` is missing.
 - WiFi credentials should be stored in NVS or provisioned.
-- Rollback config must be confirmed as enabled in the build.
+- Rollback behavior still needs periodic manual validation on real hardware.
 - `/status` should not become a large JSON dump.
 - OTA token is currently a development placeholder.
 - WiFi password must never be logged.

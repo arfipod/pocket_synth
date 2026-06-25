@@ -2,9 +2,9 @@
 
 #include "cardputer_pinmap.h"
 #include "es8311_reg.h"
+#include "i2c_bus.h"
 #include "synth_config.h"
 
-#include "driver/i2c.h"
 #include "driver/i2s_std.h"
 #include "esp_check.h"
 #include "soc/soc_caps.h"
@@ -27,12 +27,12 @@ i2s_chan_handle_t gI2sTx = nullptr;
 
 bool probeI2cDevice(uint8_t address, uint8_t reg) {
   uint8_t value = 0;
-  return i2c_master_write_read_device(I2C_NUM_0, address, &reg, 1, &value, 1, pdMS_TO_TICKS(50)) == ESP_OK;
+  return i2cWriteRead(address, &reg, 1, &value, 1, 50) == ESP_OK;
 }
 
 esp_err_t writeCodecReg(uint8_t reg, uint8_t value) {
   const uint8_t data[2] = {reg, value};
-  return i2c_master_write_to_device(I2C_NUM_0, ES8311_ADDRESS, data, sizeof(data), pdMS_TO_TICKS(100));
+  return i2cWrite(ES8311_ADDRESS, data, sizeof(data), 100);
 }
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
@@ -135,24 +135,6 @@ void applyCardputerI2sClock() {}
 #endif
 
 }  // namespace
-
-esp_err_t ensureI2cBus() {
-  i2c_config_t busConfig = {};
-  busConfig.mode = I2C_MODE_MASTER;
-  busConfig.sda_io_num = PIN_I2C_SDA;
-  busConfig.scl_io_num = PIN_I2C_SCL;
-  busConfig.sda_pullup_en = GPIO_PULLUP_ENABLE;
-  busConfig.scl_pullup_en = GPIO_PULLUP_ENABLE;
-  busConfig.master.clk_speed = 100000;
-  busConfig.clk_flags = 0;
-
-  esp_err_t err = i2c_param_config(I2C_NUM_0, &busConfig);
-  if (err != ESP_OK) return err;
-
-  err = i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
-  if (err == ESP_ERR_INVALID_STATE) return ESP_OK;
-  return err;
-}
 
 esp_err_t initializeI2sOutput() {
   i2s_chan_config_t channelConfig = {};

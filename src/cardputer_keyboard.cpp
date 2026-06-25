@@ -1,19 +1,17 @@
 #include "cardputer_keyboard.h"
 
+#include "cardputer_pinmap.h"
+#include "i2c_bus.h"
+
 #include "freertos/FreeRTOS.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
-#include "driver/i2c.h"
 #include <stdio.h>
 #include <string.h>
 
 static const char* TAG = "cardputer_keyboard";
 
-static constexpr i2c_port_t I2C_PORT = I2C_NUM_0;
-static constexpr gpio_num_t I2C_SDA = GPIO_NUM_8;
-static constexpr gpio_num_t I2C_SCL = GPIO_NUM_9;
-static constexpr gpio_num_t TCA8418_INT = GPIO_NUM_11;
 static constexpr uint8_t TCA8418_ADDR = 0x34;
 
 static constexpr uint8_t REG_CFG = 0x01;
@@ -75,38 +73,11 @@ bool CardputerKeyboard::begin() {
   if (initialized_) return true;
   setDiagnostic("creating i2c bus");
 
-  i2c_config_t busConfig = {};
-  busConfig.mode = I2C_MODE_MASTER;
-  busConfig.sda_io_num = I2C_SDA;
-  busConfig.scl_io_num = I2C_SCL;
-  busConfig.sda_pullup_en = GPIO_PULLUP_ENABLE;
-  busConfig.scl_pullup_en = GPIO_PULLUP_ENABLE;
-  busConfig.master.clk_speed = 100000;
-  busConfig.clk_flags = 0;
-
-  esp_err_t err = i2c_param_config(I2C_PORT, &busConfig);
+  esp_err_t err = pocketsynth::ensureI2cBus();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
-    snprintf(diagnostic_, sizeof(diagnostic_), "param failed %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "I2C bus init failed: %s", esp_err_to_name(err));
+    snprintf(diagnostic_, sizeof(diagnostic_), "i2c failed %s", esp_err_to_name(err));
     return false;
-  }
-
-  int existingTimeout = 0;
-  err = i2c_get_timeout(I2C_PORT, &existingTimeout);
-  if (err == ESP_OK) {
-    busInstalled_ = true;
-  } else {
-    err = i2c_driver_install(I2C_PORT, I2C_MODE_MASTER, 0, 0, 0);
-  }
-
-  if (err == ESP_ERR_INVALID_STATE || err == ESP_FAIL) {
-    busInstalled_ = true;
-  } else if (err != ESP_OK) {
-    ESP_LOGE(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
-    snprintf(diagnostic_, sizeof(diagnostic_), "install failed %s", esp_err_to_name(err));
-    return false;
-  } else {
-    busInstalled_ = true;
   }
 
   setDiagnostic("reading tca8418");
@@ -118,7 +89,7 @@ bool CardputerKeyboard::begin() {
   }
 
   gpio_config_t intConfig = {};
-  intConfig.pin_bit_mask = 1ULL << TCA8418_INT;
+  intConfig.pin_bit_mask = 1ULL << PIN_TCA8418_INT;
   intConfig.mode = GPIO_MODE_INPUT;
   intConfig.pull_up_en = GPIO_PULLUP_ENABLE;
   intConfig.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -169,10 +140,10 @@ bool CardputerKeyboard::begin() {
   ESP_LOGI(TAG,
            "keyboard initialized addr=0x%02x sda=%d scl=%d int=%d int_level=%d cfg=0x%02x int_stat=0x%02x events=%u kp=[0x%02x 0x%02x 0x%02x]",
            TCA8418_ADDR,
-           I2C_SDA,
-           I2C_SCL,
-           TCA8418_INT,
-           gpio_get_level(TCA8418_INT),
+           PIN_I2C_SDA,
+           PIN_I2C_SCL,
+           PIN_TCA8418_INT,
+           gpio_get_level(PIN_TCA8418_INT),
            cfg,
            intStat,
            eventCount & 0x0F,
@@ -281,11 +252,11 @@ const char* CardputerKeyboard::keyName(CardputerKey key, char character) {
 
 bool CardputerKeyboard::writeRegister(uint8_t reg, uint8_t value) {
   const uint8_t data[2] = {reg, value};
-  return i2c_master_write_to_device(I2C_PORT, TCA8418_ADDR, data, sizeof(data), pdMS_TO_TICKS(50)) == ESP_OK;
+  return pocketsynth::i2cWrite(TCA8418_ADDR, data, sizeof(data), 50) == ESP_OK;
 }
 
 bool CardputerKeyboard::readRegister(uint8_t reg, uint8_t* value) {
-  return i2c_master_write_read_device(I2C_PORT, TCA8418_ADDR, &reg, 1, value, 1, pdMS_TO_TICKS(50)) == ESP_OK;
+  return pocketsynth::i2cWriteRead(TCA8418_ADDR, &reg, 1, value, 1, 50) == ESP_OK;
 }
 
 void CardputerKeyboard::setDiagnostic(const char* message) {
@@ -299,8 +270,7 @@ void CardputerKeyboard::scanBus(char* out, size_t outSize) {
     used = snprintf(out, outSize, "i2c:");
   }
   for (uint8_t addr = 0x08; addr < 0x78; ++addr) {
-    uint8_t dummy = 0;
-    if (i2c_master_write_read_device(I2C_PORT, addr, &dummy, 1, &dummy, 1, pdMS_TO_TICKS(20)) == ESP_OK) {
+    if (pocketsynth::i2cProbe(addr, 20) == ESP_OK) {
       ESP_LOGI(TAG, "i2c device found at 0x%02x", addr);
       if (out != nullptr && used < outSize) {
         used += snprintf(out + used, outSize - used, " %02X", addr);
@@ -309,7 +279,7 @@ void CardputerKeyboard::scanBus(char* out, size_t outSize) {
     }
   }
   if (!found) {
-    ESP_LOGW(TAG, "i2c scan found no devices on GPIO%d/GPIO%d", I2C_SDA, I2C_SCL);
+    ESP_LOGW(TAG, "i2c scan found no devices on GPIO%d/GPIO%d", PIN_I2C_SDA, PIN_I2C_SCL);
     if (out != nullptr && outSize > 0) {
       snprintf(out, outSize, "i2c: none");
     }

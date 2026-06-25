@@ -5,7 +5,7 @@ implementation, testing, and future code agents.
 
 ## Recommended Reading
 
-1. `iteration-1.md`: what is in and out of the first iteration.
+1. `iteration-1.md`: historical scope of the first firmware milestone.
 2. `architecture.md`: how audio, input, control, and UI should communicate.
 3. `ui.md`: compact screen, controls, keyboard mapping, and JSON source.
 4. `implementation-plan.md`: phases 1A-1G with acceptance criteria.
@@ -13,8 +13,8 @@ implementation, testing, and future code agents.
 
 ## Original References
 
-- `references/pocket_synth_iteration_1_design_v1_2.pdf`: shared iteration 1
-  design document.
+- `references/pocket_synth_iteration_1_design_v1_2.pdf`: original shared design
+  document.
 - `references/cardputer-ui-pocketsynth-main.cardputer-ui.json`: latest shared UI
   JSON reference for the main screen.
 

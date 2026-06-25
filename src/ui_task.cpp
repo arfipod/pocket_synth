@@ -1,6 +1,7 @@
 #include "pocketsynth_tasks.h"
 
 #include "app_state.h"
+#include "battery_monitor.h"
 #include "cardputer_display.h"
 #include "synth_config.h"
 #include "synth_engine.h"
@@ -44,6 +45,60 @@ uint16_t colorBlue() {
 
 uint16_t colorStroke() {
   return CardputerDisplay::rgb565(52, 68, 93);
+}
+
+uint16_t blendColor(uint8_t r0, uint8_t g0, uint8_t b0, uint8_t r1, uint8_t g1, uint8_t b1, uint8_t amount) {
+  const uint16_t inv = static_cast<uint16_t>(255U - amount);
+  const uint8_t r = static_cast<uint8_t>((static_cast<uint16_t>(r0) * inv + static_cast<uint16_t>(r1) * amount) / 255U);
+  const uint8_t g = static_cast<uint8_t>((static_cast<uint16_t>(g0) * inv + static_cast<uint16_t>(g1) * amount) / 255U);
+  const uint8_t b = static_cast<uint8_t>((static_cast<uint16_t>(b0) * inv + static_cast<uint16_t>(b1) * amount) / 255U);
+  return CardputerDisplay::rgb565(r, g, b);
+}
+
+uint16_t batteryLevelColor(uint8_t percent) {
+  if (percent >= 50) {
+    const uint8_t amount = static_cast<uint8_t>(((100U - percent) * 255U) / 50U);
+    return blendColor(118, 187, 64, 236, 196, 76, amount);
+  }
+  const uint8_t amount = static_cast<uint8_t>(((50U - percent) * 255U) / 50U);
+  return blendColor(236, 196, 76, 235, 73, 73, amount);
+}
+
+void drawChargingBolt(CardputerDisplay& display, int x, int y, uint16_t color) {
+  display.drawLine(x + 3, y, x + 1, y + 3, color);
+  display.drawLine(x + 1, y + 3, x + 4, y + 3, color);
+  display.drawLine(x + 4, y + 3, x + 2, y + 7, color);
+}
+
+void drawBattery(CardputerDisplay& display, const BatteryStatus& battery) {
+  constexpr int x = 215;
+  constexpr int y = 5;
+  constexpr int bodyW = 18;
+  constexpr int bodyH = 9;
+  constexpr int capW = 2;
+  constexpr int innerW = bodyW - 4;
+  constexpr int innerH = bodyH - 4;
+
+  display.drawRoundRect(x, y, bodyW, bodyH, 2, colorStroke());
+  display.fillRect(x + bodyW, y + 3, capW, 3, colorStroke());
+
+  if (!battery.valid) {
+    display.drawLine(x + 4, y + 2, x + bodyW - 5, y + bodyH - 3, colorMuted());
+    display.drawLine(x + bodyW - 5, y + 2, x + 4, y + bodyH - 3, colorMuted());
+    return;
+  }
+
+  int fillW = (innerW * static_cast<int>(battery.levelPercent) + 50) / 100;
+  if (battery.levelPercent > 0 && fillW == 0) {
+    fillW = 1;
+  }
+  if (fillW > 0) {
+    display.fillRoundRect(x + 2, y + 2, fillW, innerH, 1, batteryLevelColor(battery.levelPercent));
+  }
+
+  if (battery.chargingKnown && battery.charging) {
+    drawChargingBolt(display, x + 6, y + 1, colorText());
+  }
 }
 
 void drawWaveIcon(CardputerDisplay& display, Waveform waveform, int x, int y, uint16_t color) {
@@ -224,7 +279,7 @@ void drawPiano(CardputerDisplay& display, uint32_t pressedMask) {
   display.drawTextCentered("C6", 192, 125, CardputerDisplay::rgb565(159, 178, 207), 1);
 }
 
-void drawUi(CardputerDisplay& display, const UiState& state) {
+void drawUi(CardputerDisplay& display, const UiState& state, const BatteryStatus& battery) {
   display.clear(colorBg());
   display.drawText("pocketsynth", 9, 6, colorText(), 1);
 
@@ -234,8 +289,7 @@ void drawUi(CardputerDisplay& display, const UiState& state) {
   display.drawText("CHORD", 115, 6, colorMuted(), 1);
   display.drawText(state.chord, 149, 6, colorGreen(), 1);
 
-  display.drawRoundRect(216, 6, 19, 7, 3, colorStroke());
-  display.fillRoundRect(218, 8, 9, 3, 1, CardputerDisplay::rgb565(118, 187, 64));
+  drawBattery(display, battery);
 
   drawWaveSelector(display, Waveform::Sine, state.waveform, 8, "F1");
   drawWaveSelector(display, Waveform::Square, state.waveform, 38, "F2");
@@ -258,13 +312,22 @@ void uiTask(void*) {
   }
 
   UiState state = {};
+  BatteryStatus battery = readBatteryStatus();
+  uint32_t lastBatteryReadMs = 0;
   uint32_t lastVersion = UINT32_MAX;
+  BatteryStatus lastBattery = {};
   for (;;) {
     copyUiState(&state);
-    if (state.version != lastVersion) {
-      drawUi(display, state);
+    const uint32_t nowMs = static_cast<uint32_t>(xTaskGetTickCount() * portTICK_PERIOD_MS);
+    if (nowMs - lastBatteryReadMs >= 1000U) {
+      battery = readBatteryStatus();
+      lastBatteryReadMs = nowMs;
+    }
+    if (state.version != lastVersion || !batteryStatusEqual(battery, lastBattery)) {
+      drawUi(display, state, battery);
       display.flush();
       lastVersion = state.version;
+      lastBattery = battery;
     }
     vTaskDelay(pdMS_TO_TICKS(UI_FRAME_MS));
   }

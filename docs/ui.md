@@ -55,8 +55,8 @@ Main elements:
 - `sparkline-output-preview`: polyphonic output preview.
 
 The original design document mentions `VOICE: V1` as possible status text. The
-latest JSON does not contain that element; for iteration 1 it can be omitted as
-long as the screen stays clear that only one voice exists.
+latest JSON does not contain that element, so the current UI omits it as long as
+the screen stays clear that only one voice exists.
 
 ## Waveform Selectors
 

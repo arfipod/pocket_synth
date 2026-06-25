@@ -129,7 +129,7 @@ pio run -d lib/firmware/cardputer_adv_ui_test -e cardputer_adv
 
 Use these setup names in final reports and validation notes.
 
-### SETUP A — Serial Basic
+### SETUP A - Serial Basic
 
 ```text
 PC <-> USB-C <-> Cardputer ADV
@@ -142,7 +142,7 @@ Use for:
 - Recovery.
 - Basic boot validation.
 
-### SETUP B — Audio Capture
+### SETUP B - Audio Capture
 
 ```text
 PC <-> USB-C <-> Cardputer ADV
@@ -156,7 +156,7 @@ Use for:
 - Recording sine/square/saw tests.
 - Comparing soft vs hard MIDI velocity.
 
-### SETUP C — WiFi Dev
+### SETUP C - WiFi Dev
 
 ```text
 PC and Cardputer ADV on the same WiFi network
@@ -172,7 +172,7 @@ Use for:
 - OTA upload scripts.
 - WiFi diagnostics.
 
-### SETUP D — MIDI Host Real
+### SETUP D - MIDI Host Real
 
 ```text
 Cardputer ADV USB-C -> powered USB-C hub with PD
@@ -191,7 +191,7 @@ Use for:
 - Velocity.
 - Sustain.
 
-### SETUP E — Recovery
+### SETUP E - Recovery
 
 ```text
 PC <-> USB-C <-> Cardputer ADV
@@ -255,7 +255,8 @@ OTA must:
 - Keep serial recovery documented.
 - Never assume OTA can fix a broken bootloader or partition table.
 
-Rollback support should be enabled and tested for OTA builds.
+Rollback support is enabled for OTA builds and should be tested periodically on
+hardware.
 
 The boot self-test should be conservative:
 
@@ -307,7 +308,7 @@ Current integration priority:
 
 ## MIDI Velocity Rules
 
-When velocity is implemented:
+Velocity behavior:
 
 - Store raw MIDI velocity per note.
 - Store computed `velocityGain` per note.
@@ -325,7 +326,7 @@ gain = 0.10f + 0.90f * sqrtf(v);
 
 ## Sustain Rules
 
-When sustain CC64 is implemented:
+Sustain CC64 behavior:
 
 - CC64 value >= 64 means sustain on.
 - CC64 value < 64 means sustain off.
@@ -400,11 +401,10 @@ include a manual checklist for the user.
 
 These items should not be forgotten:
 
-1. Dev Mode should compile without local `include/wifi_credentials.h`.
-2. WiFi credentials should eventually be stored in NVS or provisioned.
-3. OTA rollback must be confirmed as enabled in sdkconfig.
-4. Audio buffer / I2S PCM format should be simplified and validated.
-5. `PER_NOTE_GAIN` should be reviewed before velocity.
-6. MIDI velocity is parsed but must be wired end-to-end.
-7. CC64 sustain is parsed as Control Change but not mapped yet.
-8. `docs/test-checklist.md` must be kept current with real hardware results.
+1. WiFi credentials should eventually be stored in NVS or provisioned.
+2. OTA rollback behavior should be revalidated after boot-flow changes.
+3. Audio buffer / I2S PCM format should be simplified and validated.
+4. `PER_NOTE_GAIN` and waveform trims should be confirmed with real recordings.
+5. All-notes-off recovery should be added for stuck MIDI notes.
+6. Advanced CC mapping remains future work.
+7. `docs/test-checklist.md` must be kept current with real hardware results.

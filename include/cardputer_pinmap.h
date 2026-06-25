@@ -5,6 +5,10 @@
 // I2C shared bus
 inline constexpr gpio_num_t PIN_I2C_SDA = GPIO_NUM_8;
 inline constexpr gpio_num_t PIN_I2C_SCL = GPIO_NUM_9;
+inline constexpr gpio_num_t PIN_TCA8418_INT = GPIO_NUM_11;
+
+// Battery voltage divider
+inline constexpr gpio_num_t PIN_BATTERY_ADC = GPIO_NUM_10;
 
 // LCD ST7789
 inline constexpr gpio_num_t PIN_LCD_RST = GPIO_NUM_33;

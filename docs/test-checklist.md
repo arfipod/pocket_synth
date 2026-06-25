@@ -9,7 +9,7 @@ performed, document it explicitly.
 
 ## Setup Names
 
-### SETUP A — Serial Basic
+### SETUP A - Serial Basic
 
 ```text
 PC <-> USB-C <-> Cardputer ADV
@@ -17,7 +17,7 @@ PC <-> USB-C <-> Cardputer ADV
 
 Use for serial flashing, monitor logs, and recovery.
 
-### SETUP B — Audio Capture
+### SETUP B - Audio Capture
 
 ```text
 PC <-> USB-C <-> Cardputer ADV
@@ -26,7 +26,7 @@ Cardputer audio out / minijack -> Focusrite input -> PC
 
 Use for recording and inspecting audio output.
 
-### SETUP C — WiFi Dev
+### SETUP C - WiFi Dev
 
 ```text
 PC and Cardputer ADV on the same WiFi
@@ -36,7 +36,7 @@ PC connected to Cardputer AP `pocketsynth-dev`
 
 Use for `/status`, `/logs`, and `/ota`.
 
-### SETUP D — MIDI Host Real
+### SETUP D - MIDI Host Real
 
 ```text
 Cardputer ADV USB-C -> powered USB-C hub with PD
@@ -48,7 +48,7 @@ Optional: Cardputer audio out -> Focusrite -> PC
 
 Use for USB Host, USB MIDI, Komplete M32, velocity, and sustain.
 
-### SETUP E — Recovery
+### SETUP E - Recovery
 
 ```text
 PC <-> USB-C <-> Cardputer ADV
@@ -296,7 +296,8 @@ Setup: SETUP C, with SETUP E ready.
 
 Prerequisite:
 
-- OTA rollback must be enabled in sdkconfig for OTA builds.
+- OTA rollback is enabled in `sdkconfig.cardputer_adv_ota` and
+  `sdkconfig.cardputer_adv_wifi_dev`.
 
 Create a temporary failing build using:
 
@@ -319,7 +320,8 @@ Pass criteria:
 - previous valid image returns;
 - serial recovery is not needed.
 
-If rollback support is not enabled, document that the test is blocked.
+If rollback support is disabled in a future build, document that the test is
+blocked.
 
 ## 7. USB Host Enumeration Validation
 
@@ -606,12 +608,11 @@ Before merging any feature branch, verify:
 
 Track these until closed:
 
-- Dev Mode should compile without local `include/wifi_credentials.h`.
 - WiFi credentials should be persisted in NVS or provisioned.
-- OTA rollback config must be confirmed enabled.
+- OTA rollback is enabled in OTA sdkconfigs, but manual rollback behavior should
+  be revalidated after boot-flow changes.
 - Audio buffer / I2S PCM packing should be simplified or justified.
 - Waveform gain and `PER_NOTE_GAIN` need final real-recording confirmation.
-- MIDI velocity must be wired end-to-end.
-- Sustain CC64 must be implemented.
-- Pitch bend and CC mapping are future tasks.
+- All-notes-off recovery should be added for stuck MIDI notes.
+- Advanced CC mapping remains future work.
 - Native Instruments proprietary features are intentionally out of scope.

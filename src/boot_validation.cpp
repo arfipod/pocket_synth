@@ -3,6 +3,7 @@
 #include "app_state.h"
 #include "audio_output.h"
 #include "boot_diagnostics.h"
+#include "i2c_bus.h"
 #include "pocketsynth_tasks.h"
 #include "synth_config.h"
 

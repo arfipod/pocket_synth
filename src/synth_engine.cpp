@@ -1,8 +1,74 @@
 #include "synth_engine.h"
 
+#include "synth_note_policy.h"
+
 #include <math.h>
 
 namespace pocketsynth {
+namespace {
+
+ActiveNote* findFreeNoteSlot(SynthAudioState& state) {
+  for (auto& note : state.notes) {
+    if (!note.active) return &note;
+  }
+  return nullptr;
+}
+
+bool noteAlreadyStarted(const SynthAudioState& state, uint8_t noteIndex, uint8_t midi) {
+  const uint32_t mask = uiNoteMask(noteIndex);
+  if (mask != 0) {
+    return (state.pressedMask & mask) != 0;
+  }
+
+  for (const auto& note : state.notes) {
+    if (note.active && noteMatchesIdentity(note, noteIndex, midi)) return true;
+  }
+  return false;
+}
+
+void refreshActiveCount(SynthAudioState& state) {
+  state.activeCount = activeSlotCount(state);
+}
+
+void clearReleasedSustainNotes(SynthAudioState& state) {
+  for (auto& note : state.notes) {
+    if (note.active && note.keyReleased) {
+      note = {};
+    }
+  }
+  refreshActiveCount(state);
+}
+
+void startNoteInSlot(ActiveNote& note, uint8_t noteIndex, uint8_t midi, uint8_t velocity) {
+  note = {};
+  note.active = true;
+  note.noteIndex = noteIndex;
+  note.midi = midi;
+  note.velocity = velocity;
+  note.velocityGain = velocityToGain(velocity);
+  note.frequency = midiFrequency(midi);
+  note.phaseIncrement = note.frequency / static_cast<float>(SAMPLE_RATE);
+}
+
+void applyControlChange(SynthAudioState& state, const SynthEvent& event) {
+  if (event.control < 128) {
+    state.cc[event.control] = event.controlValue;
+  }
+
+  if (event.control != 64) return;
+
+  state.sustainPedal = sustainPedalActiveFromCc(event.controlValue);
+  if (!state.sustainPedal) {
+    clearReleasedSustainNotes(state);
+  }
+}
+
+void applyPitchBend(SynthAudioState& state, int16_t pitchBend) {
+  state.pitchBendRaw = pitchBend;
+  state.pitchBendMultiplier = pitchBendMultiplierFromRaw(pitchBend);
+}
+
+}  // namespace
 
 float clampFloat(float value, float low, float high) {
   if (value < low) return low;
@@ -83,67 +149,34 @@ uint8_t activeSlotCount(const SynthAudioState& state) {
   return count;
 }
 
-bool hasUiNoteIndex(uint8_t noteIndex) {
-  return noteIndex < 32;
-}
-
-bool sustainPedalActiveFromCc(uint8_t value) {
-  const bool active = value >= 64;
-  return INVERT_SUSTAIN_PEDAL ? !active : active;
-}
-
 void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi, uint8_t velocity) {
   if (state == nullptr) return;
 
-  if (hasUiNoteIndex(noteIndex)) {
-    const uint32_t bit = 1UL << noteIndex;
-    if ((state->pressedMask & bit) != 0) return;
-  } else {
-    for (const auto& note : state->notes) {
-      if (note.active && note.noteIndex == noteIndex && note.midi == midi) return;
-    }
-  }
+  if (noteAlreadyStarted(*state, noteIndex, midi)) return;
+  if (activeSlotCount(*state) >= MAX_POLYPHONY) return;
 
-  if (state->activeCount >= MAX_POLYPHONY) return;
+  ActiveNote* note = findFreeNoteSlot(*state);
+  if (note == nullptr) return;
 
-  for (auto& note : state->notes) {
-    if (note.active) continue;
-
-    note.active = true;
-    note.keyReleased = false;
-    note.noteIndex = noteIndex;
-    note.midi = midi;
-    note.velocity = velocity;
-    note.velocityGain = 0.10f + 0.90f * sqrtf(velocity / 127.0f);
-    note.frequency = midiFrequency(midi);
-    note.phase = 0.0f;
-    note.phaseIncrement = note.frequency / static_cast<float>(SAMPLE_RATE);
-    if (hasUiNoteIndex(noteIndex)) {
-      state->pressedMask |= 1UL << noteIndex;
-    }
-    state->activeCount = activeSlotCount(*state);
-    return;
-  }
+  startNoteInSlot(*note, noteIndex, midi, velocity);
+  state->pressedMask |= uiNoteMask(noteIndex);
+  refreshActiveCount(*state);
 }
 
 void noteOff(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
   if (state == nullptr) return;
 
-  if (hasUiNoteIndex(noteIndex)) {
-    state->pressedMask &= ~(1UL << noteIndex);
-  }
+  state->pressedMask &= ~uiNoteMask(noteIndex);
 
   for (auto& note : state->notes) {
-    const bool matchesUiNote = hasUiNoteIndex(noteIndex) && note.noteIndex == noteIndex;
-    const bool matchesExternalNote = !hasUiNoteIndex(noteIndex) && note.noteIndex == noteIndex && note.midi == midi;
-    if (note.active && (matchesUiNote || matchesExternalNote)) {
+    if (note.active && noteMatchesIdentity(note, noteIndex, midi)) {
       note.keyReleased = true;
       if (!state->sustainPedal) {
         note = {};
       }
     }
   }
-  state->activeCount = activeSlotCount(*state);
+  refreshActiveCount(*state);
 }
 
 void applySynthEvent(SynthAudioState* state, const SynthEvent& event) {
@@ -163,24 +196,10 @@ void applySynthEvent(SynthAudioState* state, const SynthEvent& event) {
       state->masterVolume = clampFloat(state->masterVolume + event.value, 0.0f, 1.0f);
       break;
     case SynthEventType::ControlChange:
-      if (event.control < 128) {
-        state->cc[event.control] = event.controlValue;
-      }
-      if (event.control == 64) {
-        state->sustainPedal = sustainPedalActiveFromCc(event.controlValue);
-        if (!state->sustainPedal) {
-          for (auto& note : state->notes) {
-            if (note.active && note.keyReleased) {
-              note = {};
-            }
-          }
-          state->activeCount = activeSlotCount(*state);
-        }
-      }
+      applyControlChange(*state, event);
       break;
     case SynthEventType::PitchBend:
-      state->pitchBendRaw = event.pitchBend;
-      state->pitchBendMultiplier = powf(2.0f, (static_cast<float>(event.pitchBend) / 8192.0f) * (2.0f / 12.0f));
+      applyPitchBend(*state, event.pitchBend);
       break;
   }
 }

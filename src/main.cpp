@@ -38,8 +38,8 @@ extern "C" void app_main(void) {
   using namespace pocketsynth;
 
   resetBootDiagnostics();
-  ESP_LOGI(TAG, "Starting pocketsynth iteration 1");
-  addDiagnosticLog("I", TAG, "starting pocketsynth iteration 1");
+  ESP_LOGI(TAG, "Starting pocketsynth");
+  addDiagnosticLog("I", TAG, "starting pocketsynth");
   logDetectedFlashSize();
   ESP_LOGI(TAG,
            "WiFi Dev Mode build=%s forced=%s active=%s",

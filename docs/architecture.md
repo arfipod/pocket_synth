@@ -18,6 +18,17 @@ graphics, or long locks.
 `ChordTask` can initially be integrated into `SynthControlTask`, which is how
 the current firmware is organized.
 
+## Module Boundaries
+
+- `synth_engine` applies events and owns note lifecycle changes.
+- `synth_note_policy` owns small musical policies such as note identity,
+  velocity gain, sustain polarity, and pitch bend scaling.
+- `audio_render` renders a bounded snapshot and does not log, allocate, touch
+  WiFi/USB, or draw.
+- `dev_mode` owns HTTP/WiFi/OTA development infrastructure.
+- `usb_midi_host` owns USB Host enumeration, USB MIDI packets, and optional M32
+  OLED transport.
+
 ## Data Flow
 
 ```text
@@ -42,15 +53,21 @@ enum class SynthEventType {
   NoteOn,
   NoteOff,
   SetWaveform,
-  AdjustVolume
+  AdjustVolume,
+  ControlChange,
+  PitchBend
 };
 
 struct SynthEvent {
   SynthEventType type;
   uint8_t noteIndex;
   uint8_t midi;
+  uint8_t velocity;
   Waveform waveform;
   float value;
+  uint8_t control;
+  uint8_t controlValue;
+  int16_t pitchBend;
 };
 ```
 
@@ -74,10 +91,13 @@ struct ActiveNote {
   bool active;
   uint8_t noteIndex;
   uint8_t midi;
+  uint8_t velocity;
+  float velocityGain;
   float frequency;
   float phase;
   float phaseIncrement;
   uint16_t attackSamples;
+  bool keyReleased;
 };
 
 struct SynthAudioState {
@@ -85,6 +105,10 @@ struct SynthAudioState {
   float masterVolume;
   uint8_t activeCount;
   uint32_t pressedMask;
+  bool sustainPedal;
+  int16_t pitchBendRaw;
+  float pitchBendMultiplier;
+  uint8_t cc[128];
   ActiveNote notes[MAX_POLYPHONY];
 };
 ```
@@ -140,11 +164,11 @@ int16_t toInt16(float sample) {
 
 ## Polyphony Policy
 
-When more than 8 notes are requested in iteration 1:
+When more than 8 notes are requested:
 
 - Ignore new notes until one active note is released.
 
-Future alternative:
+Possible future alternative:
 
 - Voice stealing.
 

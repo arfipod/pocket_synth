@@ -85,5 +85,4 @@ class CardputerKeyboard {
   bool initialized_ = false;
   char diagnostic_[48] = "not started";
   bool pressed_[4][14] = {};
-  bool busInstalled_ = false;
 };
