@@ -95,6 +95,7 @@ serves:
 http://192.168.4.1/status
 POST http://192.168.4.1/ota
 http://192.168.4.1/logs
+POST http://192.168.4.1/dev-note
 ```
 
 Manual test:

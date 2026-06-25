@@ -46,6 +46,22 @@ float oscillatorSample(float phase, Waveform waveform) {
   return 0.0f;
 }
 
+float oscillatorAudioSample(float phase, Waveform waveform) {
+  float sample = oscillatorSample(phase, waveform);
+  switch (waveform) {
+    case Waveform::Sine:
+      return sample * WAVEFORM_GAIN_SINE;
+    case Waveform::Square:
+      return sample * WAVEFORM_GAIN_SQUARE;
+    case Waveform::Rectangle:
+      sample -= (2.0f * PULSE_WIDTH) - 1.0f;
+      return sample * WAVEFORM_GAIN_RECTANGLE;
+    case Waveform::Saw:
+      return sample * WAVEFORM_GAIN_SAW;
+  }
+  return 0.0f;
+}
+
 int16_t floatToI16(float sample) {
   sample = clampFloat(sample, -1.0f, 1.0f);
   return static_cast<int16_t>(sample * 32767.0f);

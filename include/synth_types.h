@@ -33,6 +33,7 @@ struct ActiveNote {
   float frequency = 0.0f;
   float phase = 0.0f;
   float phaseIncrement = 0.0f;
+  uint16_t attackSamples = 0;
   bool keyReleased = false;
 };
 

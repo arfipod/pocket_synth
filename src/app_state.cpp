@@ -56,8 +56,10 @@ void storeRenderedPhases(const SynthAudioState& rendered) {
   portENTER_CRITICAL(&gAudioStateMux);
   for (int i = 0; i < MAX_POLYPHONY; ++i) {
     if (gAudioState.notes[i].active && rendered.notes[i].active &&
-        gAudioState.notes[i].noteIndex == rendered.notes[i].noteIndex) {
+        gAudioState.notes[i].noteIndex == rendered.notes[i].noteIndex &&
+        gAudioState.notes[i].midi == rendered.notes[i].midi) {
       gAudioState.notes[i].phase = rendered.notes[i].phase;
+      gAudioState.notes[i].attackSamples = rendered.notes[i].attackSamples;
     }
   }
   portEXIT_CRITICAL(&gAudioStateMux);

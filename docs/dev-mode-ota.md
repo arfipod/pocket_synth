@@ -74,6 +74,7 @@ Use this for:
 - `/status`
 - `/logs`
 - `/ota`
+- `/dev-note`
 
 ### USB MIDI Development
 
@@ -252,6 +253,20 @@ X-PocketSynth-Token: pocketsynth-dev
 
 Current security is development-only. Do not expose the endpoint outside a trusted
 local network.
+
+### POST /dev-note
+
+Development-only audio test endpoint. It requires the same placeholder token as
+OTA and sends bounded synth events through the normal control queue.
+
+Examples:
+
+```powershell
+curl -X POST -H "X-PocketSynth-Token: pocketsynth-dev" "http://192.168.4.1/dev-note?action=on&wave=sine&midi=60&velocity=127"
+curl -X POST -H "X-PocketSynth-Token: pocketsynth-dev" "http://192.168.4.1/dev-note?action=off&midi=60"
+```
+
+Supported `wave` values are `sine`, `square`, `rect`, and `saw`.
 
 ## OTA Flow
 

@@ -4,9 +4,12 @@
 
 #if POCKETSYNTH_ENABLE_WIFI_DEV_MODE
 #include <cstring>
+#include <cstdlib>
 
+#include "app_state.h"
 #include "boot_diagnostics.h"
 #include "m32_oled.h"
+#include "synth_types.h"
 #include "usb_host_diag.h"
 #include "usb_midi_host.h"
 #include "wifi_credentials.h"
@@ -46,6 +49,7 @@ constexpr size_t OTA_RECV_BUFFER_SIZE = 1024;
 constexpr TickType_t OTA_REBOOT_DELAY = pdMS_TO_TICKS(800);
 constexpr size_t STATUS_RESPONSE_SIZE = 12288;
 constexpr size_t LOG_RESPONSE_SIZE = 2048;
+constexpr size_t QUERY_BUFFER_SIZE = 128;
 
 char gStatusResponse[STATUS_RESPONSE_SIZE] = {};
 
@@ -183,6 +187,87 @@ bool requestHasValidOtaToken(httpd_req_t* req) {
   char token[32] = {};
   esp_err_t err = httpd_req_get_hdr_value_str(req, "X-PocketSynth-Token", token, sizeof(token));
   return err == ESP_OK && std::strcmp(token, DEV_OTA_TOKEN) == 0;
+}
+
+bool queryValue(httpd_req_t* req, const char* key, char* out, size_t outSize) {
+  if (out == nullptr || outSize == 0) return false;
+  out[0] = '\0';
+
+  char query[QUERY_BUFFER_SIZE] = {};
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) {
+    return false;
+  }
+  return httpd_query_key_value(query, key, out, outSize) == ESP_OK;
+}
+
+uint8_t queryUint8(httpd_req_t* req, const char* key, uint8_t fallback, uint8_t low, uint8_t high) {
+  char value[12] = {};
+  if (!queryValue(req, key, value, sizeof(value))) {
+    return fallback;
+  }
+
+  char* end = nullptr;
+  long parsed = std::strtol(value, &end, 10);
+  if (end == value) {
+    return fallback;
+  }
+  if (parsed < low) parsed = low;
+  if (parsed > high) parsed = high;
+  return static_cast<uint8_t>(parsed);
+}
+
+Waveform queryWaveform(httpd_req_t* req) {
+  char value[16] = {};
+  if (!queryValue(req, "wave", value, sizeof(value))) {
+    return Waveform::Sine;
+  }
+  if (std::strcmp(value, "square") == 0 || std::strcmp(value, "sqr") == 0) {
+    return Waveform::Square;
+  }
+  if (std::strcmp(value, "rect") == 0 || std::strcmp(value, "rectangle") == 0) {
+    return Waveform::Rectangle;
+  }
+  if (std::strcmp(value, "saw") == 0 || std::strcmp(value, "sawtooth") == 0) {
+    return Waveform::Saw;
+  }
+  return Waveform::Sine;
+}
+
+esp_err_t devNoteHandler(httpd_req_t* req) {
+  if (!requestHasValidOtaToken(req)) {
+    httpd_resp_set_status(req, "401 Unauthorized");
+    return httpd_resp_sendstr(req, "missing or invalid dev token\n");
+  }
+
+  char action[8] = {};
+  if (!queryValue(req, "action", action, sizeof(action))) {
+    std::strncpy(action, "on", sizeof(action) - 1);
+  }
+
+  const uint8_t midi = queryUint8(req, "midi", 60, 0, 127);
+  const uint8_t velocity = queryUint8(req, "velocity", 127, 1, 127);
+
+  if (std::strcmp(action, "off") == 0) {
+    SynthEvent off = {};
+    off.type = SynthEventType::NoteOff;
+    off.noteIndex = SYNTH_NO_UI_NOTE_INDEX;
+    off.midi = midi;
+    return httpd_resp_sendstr(req, sendSynthEvent(off) ? "note off\n" : "note off queue failed\n");
+  }
+
+  SynthEvent wave = {};
+  wave.type = SynthEventType::SetWaveform;
+  wave.waveform = queryWaveform(req);
+  bool ok = sendSynthEvent(wave);
+
+  SynthEvent on = {};
+  on.type = SynthEventType::NoteOn;
+  on.noteIndex = SYNTH_NO_UI_NOTE_INDEX;
+  on.midi = midi;
+  on.velocity = velocity;
+  ok = sendSynthEvent(on) && ok;
+
+  return httpd_resp_sendstr(req, ok ? "note on\n" : "note on queue failed\n");
 }
 
 esp_err_t otaHandler(httpd_req_t* req) {
@@ -456,7 +541,17 @@ esp_err_t startStatusServer() {
   logsUri.method = HTTP_GET;
   logsUri.handler = logsHandler;
   logsUri.user_ctx = nullptr;
-  return httpd_register_uri_handler(server, &logsUri);
+  err = httpd_register_uri_handler(server, &logsUri);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  httpd_uri_t devNoteUri = {};
+  devNoteUri.uri = "/dev-note";
+  devNoteUri.method = HTTP_POST;
+  devNoteUri.handler = devNoteHandler;
+  devNoteUri.user_ctx = nullptr;
+  return httpd_register_uri_handler(server, &devNoteUri);
 }
 #endif
 

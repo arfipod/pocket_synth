@@ -11,6 +11,7 @@ float midiFrequency(uint8_t midi);
 int pitchClassForMidi(uint8_t midi);
 const char* waveformShortName(Waveform waveform);
 float oscillatorSample(float phase, Waveform waveform);
+float oscillatorAudioSample(float phase, Waveform waveform);
 int16_t floatToI16(float sample);
 
 void initializeSynthState(SynthAudioState* state);

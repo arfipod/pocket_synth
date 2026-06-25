@@ -144,7 +144,7 @@ void drawOutputPreview(CardputerDisplay& display) {
     for (auto& note : notes) {
       if (!note.active) continue;
 
-      mixed += oscillatorSample(note.phase, preview.waveform) * PER_NOTE_GAIN;
+      mixed += oscillatorAudioSample(note.phase, preview.waveform) * PER_NOTE_GAIN * note.velocityGain;
       note.phase += note.phaseIncrement * 4.0f;
       if (note.phase >= 1.0f) note.phase -= floorf(note.phase);
     }

@@ -184,7 +184,7 @@ Failure indicators:
 Known technical debt to verify:
 
 - current audio buffer/I2S packing should be reviewed;
-- `PER_NOTE_GAIN` may be high for 8-note chords.
+- waveform gain and `PER_NOTE_GAIN` should be checked on real recordings.
 
 ## 4. WiFi Dev Mode Validation
 
@@ -610,7 +610,7 @@ Track these until closed:
 - WiFi credentials should be persisted in NVS or provisioned.
 - OTA rollback config must be confirmed enabled.
 - Audio buffer / I2S PCM packing should be simplified or justified.
-- `PER_NOTE_GAIN` should be reviewed before velocity.
+- Waveform gain and `PER_NOTE_GAIN` need final real-recording confirmation.
 - MIDI velocity must be wired end-to-end.
 - Sustain CC64 must be implemented.
 - Pitch bend and CC mapping are future tasks.

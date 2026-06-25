@@ -26,6 +26,7 @@ Desktop.ini
 *.log
 *.dmp
 *.pcapng
+captures/
 tools/*.zip
 
 # Local environment and secrets

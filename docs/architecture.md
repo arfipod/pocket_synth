@@ -77,6 +77,7 @@ struct ActiveNote {
   float frequency;
   float phase;
   float phaseIncrement;
+  uint16_t attackSamples;
 };
 
 struct SynthAudioState {
@@ -124,6 +125,8 @@ while (true) {
 - Initial sample rate: 22050 Hz.
 - Initial buffer: 128 frames.
 - Maximum polyphony: 8 notes.
+- Audio render applies fixed waveform loudness trims and a short per-note
+  anti-click attack ramp.
 
 Conceptual conversion:
 

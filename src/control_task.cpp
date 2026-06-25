@@ -21,6 +21,7 @@ void controlTask(void*) {
     SynthEvent event = {};
     if (xQueueReceive(synthEventQueue(), &event, portMAX_DELAY) != pdTRUE) continue;
 
+    copyAudioState(&controlState);
     applySynthEvent(&controlState, event);
     detectChord(controlState, chord, sizeof(chord));
     publishAudioState(controlState);
