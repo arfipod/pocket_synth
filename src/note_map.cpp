@@ -26,4 +26,11 @@ const KeyNote* findNoteByKey(char key) {
   return nullptr;
 }
 
+const KeyNote* findNoteByMidi(uint8_t midi) {
+  for (const auto& entry : KEY_NOTES) {
+    if (entry.midi == midi) return &entry;
+  }
+  return nullptr;
+}
+
 }  // namespace pocketsynth

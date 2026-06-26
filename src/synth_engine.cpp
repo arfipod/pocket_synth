@@ -30,6 +30,16 @@ void refreshActiveCount(SynthAudioState& state) {
   state.activeCount = activeSlotCount(state);
 }
 
+void refreshPressedMask(SynthAudioState& state) {
+  uint32_t pressedMask = 0;
+  for (const auto& note : state.notes) {
+    if (note.active && !note.keyReleased) {
+      pressedMask |= visualNoteMask(note.noteIndex, note.midi);
+    }
+  }
+  state.pressedMask = pressedMask;
+}
+
 void clearReleasedSustainNotes(SynthAudioState& state) {
   for (auto& note : state.notes) {
     if (note.active && note.keyReleased) {
@@ -37,6 +47,7 @@ void clearReleasedSustainNotes(SynthAudioState& state) {
     }
   }
   refreshActiveCount(state);
+  refreshPressedMask(state);
 }
 
 void startNoteInSlot(ActiveNote& note, uint8_t noteIndex, uint8_t midi, uint8_t velocity) {
@@ -159,14 +170,12 @@ void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi, uint8_t vel
   if (note == nullptr) return;
 
   startNoteInSlot(*note, noteIndex, midi, velocity);
-  state->pressedMask |= uiNoteMask(noteIndex);
   refreshActiveCount(*state);
+  refreshPressedMask(*state);
 }
 
 void noteOff(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
   if (state == nullptr) return;
-
-  state->pressedMask &= ~uiNoteMask(noteIndex);
 
   for (auto& note : state->notes) {
     if (note.active && noteMatchesIdentity(note, noteIndex, midi)) {
@@ -177,6 +186,7 @@ void noteOff(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
     }
   }
   refreshActiveCount(*state);
+  refreshPressedMask(*state);
 }
 
 void applySynthEvent(SynthAudioState* state, const SynthEvent& event) {

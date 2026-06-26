@@ -254,7 +254,7 @@ USB transfer callback
 
 ## Note Identity
 
-Cardputer keyboard notes have a physical `noteIndex` and can update `pressedMask`
+Cardputer keyboard notes have a physical `noteIndex` and update `pressedMask`
 for UI feedback.
 
 External MIDI notes do not have a Cardputer UI key index.
@@ -268,6 +268,11 @@ SYNTH_NO_UI_NOTE_INDEX = 0xFF
 For external notes, note identity should primarily be MIDI note number. Future
 work may need a better voice identity if duplicate Note On messages for the same
 MIDI note should be supported.
+
+For visual feedback, external MIDI notes that match the visible Cardputer piano
+range reuse the corresponding UI key mask. This lets C4-C6 MIDI notes light the
+same virtual keys as the physical Cardputer keyboard without changing external
+note identity.
 
 ## Velocity Roadmap
 

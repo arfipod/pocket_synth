@@ -1,5 +1,6 @@
 #include "synth_note_policy.h"
 
+#include "note_map.h"
 #include "synth_config.h"
 
 #include <math.h>
@@ -22,6 +23,14 @@ bool noteIndexHasUiKey(uint8_t noteIndex) {
 
 uint32_t uiNoteMask(uint8_t noteIndex) {
   return noteIndexHasUiKey(noteIndex) ? (1UL << noteIndex) : 0;
+}
+
+uint32_t visualNoteMask(uint8_t noteIndex, uint8_t midi) {
+  const uint32_t directMask = uiNoteMask(noteIndex);
+  if (directMask != 0) return directMask;
+
+  const KeyNote* note = findNoteByMidi(midi);
+  return note == nullptr ? 0 : uiNoteMask(note->noteIndex);
 }
 
 bool noteMatchesIdentity(const ActiveNote& note, uint8_t noteIndex, uint8_t midi) {

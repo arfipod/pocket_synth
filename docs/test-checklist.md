@@ -500,16 +500,18 @@ Steps:
 3. Press C4.
 4. Confirm Note On packet appears.
 5. Confirm synth note starts.
-6. Release C4.
-7. Confirm Note Off packet appears.
-8. Confirm synth note stops.
-9. Play a 3-note chord.
-10. Confirm active count changes and no crash occurs.
+6. Confirm the matching virtual piano key lights up for visible notes C4-C6.
+7. Release C4.
+8. Confirm Note Off packet appears.
+9. Confirm synth note stops and the virtual key returns to inactive.
+10. Play a 3-note chord.
+11. Confirm active count changes and no crash occurs.
 
 Pass criteria:
 
 - M32 can trigger notes;
 - NoteOff stops notes;
+- visible C4-C6 MIDI notes light the same virtual keys as Cardputer keys;
 - Cardputer keyboard still works;
 - waveform selection still works;
 - volume controls still work;

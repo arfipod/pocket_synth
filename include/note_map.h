@@ -11,5 +11,6 @@ struct KeyNote {
 };
 
 const KeyNote* findNoteByKey(char key);
+const KeyNote* findNoteByMidi(uint8_t midi);
 
 }  // namespace pocketsynth
