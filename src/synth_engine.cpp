@@ -1,5 +1,6 @@
 #include "synth_engine.h"
 
+#include "synth_envelope.h"
 #include "synth_note_policy.h"
 
 #include <math.h>
@@ -14,16 +15,52 @@ ActiveNote* findFreeNoteSlot(SynthAudioState& state) {
   return nullptr;
 }
 
-bool noteAlreadyStarted(const SynthAudioState& state, uint8_t noteIndex, uint8_t midi) {
-  const uint32_t mask = uiNoteMask(noteIndex);
-  if (mask != 0) {
-    return (state.pressedMask & mask) != 0;
+ActiveNote* findMatchingNoteSlot(SynthAudioState& state, uint8_t noteIndex, uint8_t midi, bool keyReleased) {
+  for (auto& note : state.notes) {
+    if (note.active && note.keyReleased == keyReleased && noteMatchesIdentity(note, noteIndex, midi)) return &note;
   }
+  return nullptr;
+}
 
+bool noteAlreadyHeld(const SynthAudioState& state, uint8_t noteIndex, uint8_t midi) {
   for (const auto& note : state.notes) {
-    if (note.active && noteMatchesIdentity(note, noteIndex, midi)) return true;
+    if (note.active && !note.keyReleased && noteMatchesIdentity(note, noteIndex, midi)) return true;
   }
   return false;
+}
+
+bool isReleaseStealCandidate(const ActiveNote& note) {
+  return note.active && (note.envelope.stage == EnvelopeStage::Release || envelopeFinished(note.envelope));
+}
+
+ActiveNote* findQuietestReleaseSlot(SynthAudioState& state) {
+  ActiveNote* candidate = nullptr;
+  float candidateLevel = 2.0f;
+  for (auto& note : state.notes) {
+    if (!isReleaseStealCandidate(note)) continue;
+    if (candidate == nullptr || note.envelope.level < candidateLevel) {
+      candidate = &note;
+      candidateLevel = note.envelope.level;
+    }
+  }
+  return candidate;
+}
+
+ActiveNote* findOldestNoteSlot(SynthAudioState& state) {
+  ActiveNote* candidate = nullptr;
+  for (auto& note : state.notes) {
+    if (!note.active) continue;
+    if (candidate == nullptr || note.ageSamples > candidate->ageSamples) {
+      candidate = &note;
+    }
+  }
+  return candidate;
+}
+
+ActiveNote* allocateNoteSlot(SynthAudioState& state) {
+  if (ActiveNote* freeSlot = findFreeNoteSlot(state)) return freeSlot;
+  if (ActiveNote* releaseSlot = findQuietestReleaseSlot(state)) return releaseSlot;
+  return findOldestNoteSlot(state);
 }
 
 void refreshActiveCount(SynthAudioState& state) {
@@ -40,10 +77,10 @@ void refreshPressedMask(SynthAudioState& state) {
   state.pressedMask = pressedMask;
 }
 
-void clearReleasedSustainNotes(SynthAudioState& state) {
+void releaseSustainedNotes(SynthAudioState& state) {
   for (auto& note : state.notes) {
     if (note.active && note.keyReleased) {
-      note = {};
+      envelopeNoteOff(note.envelope);
     }
   }
   refreshActiveCount(state);
@@ -58,7 +95,31 @@ void startNoteInSlot(ActiveNote& note, uint8_t noteIndex, uint8_t midi, uint8_t 
   note.velocity = velocity;
   note.velocityGain = velocityToGain(velocity);
   note.frequency = midiFrequency(midi);
+  note.phase = 0.0f;
   note.phaseIncrement = note.frequency / static_cast<float>(SAMPLE_RATE);
+  note.keyReleased = false;
+  note.ageSamples = 0;
+  envelopeNoteOn(note.envelope);
+}
+
+void adjustAttack(SynthAudioState& state, float deltaMs) {
+  state.ampEnvelope.attackMs =
+      clampFloat(state.ampEnvelope.attackMs + deltaMs, ENVELOPE_ATTACK_MIN_MS, ENVELOPE_ATTACK_MAX_MS);
+}
+
+void adjustDecay(SynthAudioState& state, float deltaMs) {
+  state.ampEnvelope.decayMs =
+      clampFloat(state.ampEnvelope.decayMs + deltaMs, ENVELOPE_DECAY_MIN_MS, ENVELOPE_DECAY_MAX_MS);
+}
+
+void adjustSustain(SynthAudioState& state, float delta) {
+  state.ampEnvelope.sustainLevel =
+      clampFloat(state.ampEnvelope.sustainLevel + delta, ENVELOPE_SUSTAIN_MIN_LEVEL, ENVELOPE_SUSTAIN_MAX_LEVEL);
+}
+
+void adjustRelease(SynthAudioState& state, float deltaMs) {
+  state.ampEnvelope.releaseMs =
+      clampFloat(state.ampEnvelope.releaseMs + deltaMs, ENVELOPE_RELEASE_MIN_MS, ENVELOPE_RELEASE_MAX_MS);
 }
 
 void applyControlChange(SynthAudioState& state, const SynthEvent& event) {
@@ -70,7 +131,7 @@ void applyControlChange(SynthAudioState& state, const SynthEvent& event) {
 
   state.sustainPedal = sustainPedalActiveFromCc(event.controlValue);
   if (!state.sustainPedal) {
-    clearReleasedSustainNotes(state);
+    releaseSustainedNotes(state);
   }
 }
 
@@ -150,6 +211,7 @@ void initializeSynthState(SynthAudioState* state) {
   state->waveform = Waveform::Sine;
   state->masterVolume = INITIAL_MASTER_VOLUME;
   state->pitchBendMultiplier = 1.0f;
+  state->ampEnvelope = DEFAULT_AMP_ENVELOPE;
 }
 
 uint8_t activeSlotCount(const SynthAudioState& state) {
@@ -163,10 +225,12 @@ uint8_t activeSlotCount(const SynthAudioState& state) {
 void noteOn(SynthAudioState* state, uint8_t noteIndex, uint8_t midi, uint8_t velocity) {
   if (state == nullptr) return;
 
-  if (noteAlreadyStarted(*state, noteIndex, midi)) return;
-  if (activeSlotCount(*state) >= MAX_POLYPHONY) return;
+  if (noteAlreadyHeld(*state, noteIndex, midi)) return;
 
-  ActiveNote* note = findFreeNoteSlot(*state);
+  ActiveNote* note = findMatchingNoteSlot(*state, noteIndex, midi, true);
+  if (note == nullptr) {
+    note = allocateNoteSlot(*state);
+  }
   if (note == nullptr) return;
 
   startNoteInSlot(*note, noteIndex, midi, velocity);
@@ -181,7 +245,7 @@ void noteOff(SynthAudioState* state, uint8_t noteIndex, uint8_t midi) {
     if (note.active && noteMatchesIdentity(note, noteIndex, midi)) {
       note.keyReleased = true;
       if (!state->sustainPedal) {
-        note = {};
+        envelopeNoteOff(note.envelope);
       }
     }
   }
@@ -204,6 +268,18 @@ void applySynthEvent(SynthAudioState* state, const SynthEvent& event) {
       break;
     case SynthEventType::AdjustVolume:
       state->masterVolume = clampFloat(state->masterVolume + event.value, 0.0f, 1.0f);
+      break;
+    case SynthEventType::AdjustAttack:
+      adjustAttack(*state, event.value);
+      break;
+    case SynthEventType::AdjustDecay:
+      adjustDecay(*state, event.value);
+      break;
+    case SynthEventType::AdjustSustain:
+      adjustSustain(*state, event.value);
+      break;
+    case SynthEventType::AdjustRelease:
+      adjustRelease(*state, event.value);
       break;
     case SynthEventType::ControlChange:
       applyControlChange(*state, event);

@@ -13,7 +13,7 @@ QueueHandle_t synthEventQueue();
 bool sendSynthEvent(const SynthEvent& event);
 void copyAudioState(SynthAudioState* out);
 void publishAudioState(const SynthAudioState& state);
-void storeRenderedPhases(const SynthAudioState& rendered);
+void storeRenderedAudioState(const SynthAudioState& rendered);
 
 void copyUiState(UiState* out);
 void publishUiFromAudioState(const SynthAudioState& state, const char* chord);

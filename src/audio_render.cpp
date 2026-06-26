@@ -1,5 +1,6 @@
 #include "audio_render.h"
 
+#include "synth_envelope.h"
 #include "synth_engine.h"
 
 namespace pocketsynth {
@@ -12,14 +13,6 @@ constexpr float INV_SQRT[MAX_POLYPHONY + 1] = {
 int32_t packI2sMonoPair(int16_t first, int16_t second) {
   return static_cast<int32_t>((static_cast<uint32_t>(static_cast<uint16_t>(first)) << 16) |
                               static_cast<uint16_t>(second));
-}
-
-float noteAttackGain(ActiveNote& note) {
-  if (note.attackSamples >= NOTE_ATTACK_SAMPLES) return 1.0f;
-
-  const float t = static_cast<float>(note.attackSamples) / static_cast<float>(NOTE_ATTACK_SAMPLES);
-  ++note.attackSamples;
-  return t * t * (3.0f - 2.0f * t);
 }
 
 }  // namespace
@@ -36,10 +29,14 @@ void renderAudioBuffer(SynthAudioState* state, int32_t* buffer, size_t frames) {
       for (auto& note : state->notes) {
         if (!note.active) continue;
 
-        mixed += oscillatorAudioSample(note.phase, state->waveform) * noteAttackGain(note) * PER_NOTE_GAIN *
-                 note.velocityGain;
+        const float envelopeGain = envelopeNextGain(note.envelope, state->ampEnvelope);
+        mixed += oscillatorAudioSample(note.phase, state->waveform) * envelopeGain * PER_NOTE_GAIN * note.velocityGain;
         note.phase += note.phaseIncrement * state->pitchBendMultiplier;
         if (note.phase >= 1.0f) note.phase -= 1.0f;
+        if (note.ageSamples < UINT32_MAX) ++note.ageSamples;
+        if (envelopeFinished(note.envelope)) {
+          note.active = false;
+        }
       }
       mixed *= normalize;
       mixed *= state->masterVolume;
@@ -56,6 +53,8 @@ void renderAudioBuffer(SynthAudioState* state, int32_t* buffer, size_t frames) {
   if ((frames & 1U) != 0) {
     buffer[frames >> 1] = packI2sMonoPair(firstInPair, firstInPair);
   }
+
+  state->activeCount = activeSlotCount(*state);
 }
 
 }  // namespace pocketsynth

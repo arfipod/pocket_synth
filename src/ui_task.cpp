@@ -4,6 +4,7 @@
 #include "battery_monitor.h"
 #include "cardputer_display.h"
 #include "synth_config.h"
+#include "synth_envelope.h"
 #include "synth_engine.h"
 
 #include "esp_log.h"
@@ -199,7 +200,8 @@ void drawOutputPreview(CardputerDisplay& display) {
     for (auto& note : notes) {
       if (!note.active) continue;
 
-      mixed += oscillatorAudioSample(note.phase, preview.waveform) * PER_NOTE_GAIN * note.velocityGain;
+      const float envelopeGain = envelopeNextGain(note.envelope, preview.ampEnvelope);
+      mixed += oscillatorAudioSample(note.phase, preview.waveform) * envelopeGain * PER_NOTE_GAIN * note.velocityGain;
       note.phase += note.phaseIncrement * 4.0f;
       if (note.phase >= 1.0f) note.phase -= floorf(note.phase);
     }
@@ -211,6 +213,15 @@ void drawOutputPreview(CardputerDisplay& display) {
     prevX = px;
     prevY = py;
   }
+}
+
+void drawEnvelope(CardputerDisplay& display, const UiState& state) {
+  char text[32] = {};
+  const unsigned int attack = static_cast<unsigned int>(state.attackMs + 0.5f);
+  const unsigned int decay = static_cast<unsigned int>(state.decayMs + 0.5f);
+  const unsigned int release = static_cast<unsigned int>(state.releaseMs + 0.5f);
+  snprintf(text, sizeof(text), "A%03u D%03u S%.2f R%03u", attack, decay, state.sustainLevel, release);
+  display.drawText(text, 8, 34, colorBlue(), 1);
 }
 
 void drawVolume(CardputerDisplay& display, float volume) {
@@ -295,6 +306,7 @@ void drawUi(CardputerDisplay& display, const UiState& state, const BatteryStatus
   drawWaveSelector(display, Waveform::Square, state.waveform, 38, "F2");
   drawWaveSelector(display, Waveform::Rectangle, state.waveform, 68, "F3");
   drawWaveSelector(display, Waveform::Saw, state.waveform, 98, "F4");
+  drawEnvelope(display, state);
   drawWavePreview(display, state);
   drawOutputPreview(display);
   drawVolume(display, state.masterVolume);

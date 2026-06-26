@@ -324,9 +324,11 @@ pedal setup.
 
 Implemented behavior:
 
-- While sustain is on, NoteOff marks the note as `keyReleased = true` instead of clearing it.
-- When sustain turns off, notes that have `keyReleased == true` are cleared immediately.
-- There is no ADSR release yet; notes stop instantly upon physical release or pedal lift.
+- While sustain is on, NoteOff marks the note as `keyReleased = true` instead of
+  starting Release.
+- When sustain turns off, notes that have `keyReleased == true` enter their ADSR
+  Release stage.
+- Notes are cleared only after the per-note envelope reaches Off.
 
 ## Pitch Bend Roadmap
 
@@ -406,7 +408,8 @@ Mitigations:
 
 ## Current Known Limitations
 
-- No advanced ADSR release/decay yet.
+- ADSR is implemented for amplitude only; advanced CC mapping to ADSR or other
+  synth parameters remains future work.
 - No NKS/proprietary Native Instruments behavior.
 - USB MIDI Host is experimental and hardware-dependent.
 - USB Serial/JTAG should not be assumed available while using the same USB-C path

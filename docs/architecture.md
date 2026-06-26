@@ -21,6 +21,7 @@ the current firmware is organized.
 ## Module Boundaries
 
 - `synth_engine` applies events and owns note lifecycle changes.
+- `synth_envelope` owns the per-note ADSR envelope state machine.
 - `synth_note_policy` owns small musical policies such as note identity,
   velocity gain, sustain polarity, and pitch bend scaling.
 - `audio_render` renders a bounded snapshot and does not log, allocate, touch
@@ -54,6 +55,10 @@ enum class SynthEventType {
   NoteOff,
   SetWaveform,
   AdjustVolume,
+  AdjustAttack,
+  AdjustDecay,
+  AdjustSustain,
+  AdjustRelease,
   ControlChange,
   PitchBend
 };
@@ -96,7 +101,8 @@ struct ActiveNote {
   float frequency;
   float phase;
   float phaseIncrement;
-  uint16_t attackSamples;
+  EnvelopeState envelope;
+  uint32_t ageSamples;
   bool keyReleased;
 };
 
@@ -108,6 +114,7 @@ struct SynthAudioState {
   bool sustainPedal;
   int16_t pitchBendRaw;
   float pitchBendMultiplier;
+  EnvelopeParams ampEnvelope;
   uint8_t cc[128];
   ActiveNote notes[MAX_POLYPHONY];
 };
@@ -137,7 +144,7 @@ Expected structure:
 while (true) {
   copyAudioState(&localState);
   renderAudioBuffer(&localState, buffer, AUDIO_BUFFER_FRAMES);
-  storeRenderedPhases(localState);
+  storeRenderedAudioState(localState);
   writeAudioFrames(buffer, AUDIO_BUFFER_FRAMES);
 }
 ```
@@ -149,8 +156,8 @@ while (true) {
 - Initial sample rate: 22050 Hz.
 - Initial buffer: 128 frames.
 - Maximum polyphony: 8 notes.
-- Audio render applies fixed waveform loudness trims and a short per-note
-  anti-click attack ramp.
+- Audio render applies fixed waveform loudness trims and a per-note ADSR
+  amplitude envelope before velocity gain and mixing.
 
 Conceptual conversion:
 
@@ -164,13 +171,15 @@ int16_t toInt16(float sample) {
 
 ## Polyphony Policy
 
-When more than 8 notes are requested:
+When more than 8 notes are requested, the engine uses a bounded voice
+assignment policy:
 
-- Ignore new notes until one active note is released.
+1. Use an inactive slot.
+2. Reuse a released duplicate note for retriggering.
+3. Steal a voice in Release, preferring the quietest one.
+4. If no Release voice exists, steal the oldest active voice.
 
-Possible future alternative:
-
-- Voice stealing.
+Released notes continue to count as active until their envelope reaches Off.
 
 ## UI And Visual State
 

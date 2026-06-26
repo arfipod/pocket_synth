@@ -320,8 +320,10 @@ Final test:
 
 ## Later Roadmap
 
-- Iteration 2: multiple channels/voices, waveform and volume per channel, mixer.
-- Iteration 3: ADSR per note.
-- Iteration 4: LFO for vibrato, tremolo, PWM, and modulation.
-- Iteration 5: basic low-pass, high-pass, band-pass filters and resonance.
-- Iteration 6: presets, patch save/load, possible SD use.
+Note: the roadmap changed after iteration 1.
+
+- Iteration 2: ADSR per note; see `docs/iteration-2-adsr.md`.
+- Later: multiple channels/voices, waveform and volume per channel, mixer.
+- Later: LFO for vibrato, tremolo, PWM, and modulation.
+- Later: basic low-pass, high-pass, band-pass filters and resonance.
+- Later: presets, patch save/load, possible SD use.

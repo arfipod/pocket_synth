@@ -1,5 +1,6 @@
 #include "app_state.h"
 
+#include "synth_envelope.h"
 #include "synth_engine.h"
 
 #include <stdio.h>
@@ -12,6 +13,10 @@ portMUX_TYPE gAudioStateMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE gUiStateMux = portMUX_INITIALIZER_UNLOCKED;
 SynthAudioState gAudioState;
 UiState gUiState;
+
+bool sameNoteIdentity(const ActiveNote& a, const ActiveNote& b) {
+  return a.noteIndex == b.noteIndex && a.midi == b.midi;
+}
 
 }  // namespace
 
@@ -52,15 +57,31 @@ void publishAudioState(const SynthAudioState& state) {
   portEXIT_CRITICAL(&gAudioStateMux);
 }
 
-void storeRenderedPhases(const SynthAudioState& rendered) {
+void storeRenderedAudioState(const SynthAudioState& rendered) {
   portENTER_CRITICAL(&gAudioStateMux);
+  bool activeCountChanged = false;
   for (int i = 0; i < MAX_POLYPHONY; ++i) {
-    if (gAudioState.notes[i].active && rendered.notes[i].active &&
-        gAudioState.notes[i].noteIndex == rendered.notes[i].noteIndex &&
-        gAudioState.notes[i].midi == rendered.notes[i].midi) {
-      gAudioState.notes[i].phase = rendered.notes[i].phase;
-      gAudioState.notes[i].attackSamples = rendered.notes[i].attackSamples;
+    if (!gAudioState.notes[i].active || !sameNoteIdentity(gAudioState.notes[i], rendered.notes[i])) continue;
+
+    if (rendered.notes[i].active) {
+      if (gAudioState.notes[i].keyReleased == rendered.notes[i].keyReleased) {
+        gAudioState.notes[i].phase = rendered.notes[i].phase;
+        gAudioState.notes[i].envelope = rendered.notes[i].envelope;
+        gAudioState.notes[i].ageSamples = rendered.notes[i].ageSamples;
+      }
+    } else if (gAudioState.notes[i].keyReleased || envelopeFinished(gAudioState.notes[i].envelope)) {
+      gAudioState.notes[i] = {};
+      activeCountChanged = true;
     }
+  }
+  if (activeCountChanged) {
+    gAudioState.activeCount = activeSlotCount(gAudioState);
+  } else if (gAudioState.activeCount != rendered.activeCount) {
+    uint8_t count = 0;
+    for (int i = 0; i < MAX_POLYPHONY; ++i) {
+      if (gAudioState.notes[i].active) ++count;
+    }
+    gAudioState.activeCount = count;
   }
   portEXIT_CRITICAL(&gAudioStateMux);
 }
@@ -79,6 +100,10 @@ void publishUiFromAudioState(const SynthAudioState& state, const char* chord) {
   gUiState.masterVolume = state.masterVolume;
   gUiState.activeCount = state.activeCount;
   gUiState.pressedMask = state.pressedMask;
+  gUiState.attackMs = state.ampEnvelope.attackMs;
+  gUiState.decayMs = state.ampEnvelope.decayMs;
+  gUiState.sustainLevel = state.ampEnvelope.sustainLevel;
+  gUiState.releaseMs = state.ampEnvelope.releaseMs;
   snprintf(gUiState.chord, sizeof(gUiState.chord), "%s", chord ? chord : "--");
   ++gUiState.version;
   portEXIT_CRITICAL(&gUiStateMux);

@@ -3,6 +3,7 @@
 #include "cardputer_keyboard.h"
 #include "note_map.h"
 #include "synth_config.h"
+#include "synth_envelope.h"
 #include "synth_events.h"
 
 #include "esp_log.h"
@@ -13,6 +14,42 @@ namespace pocketsynth {
 namespace {
 
 constexpr const char* TAG = "input_task";
+
+char normalizeControlChar(char ch) {
+  if (ch >= 'A' && ch <= 'Z') return static_cast<char>(ch - 'A' + 'a');
+  return ch;
+}
+
+bool sendEnvelopeControl(char character) {
+  switch (normalizeControlChar(character)) {
+    case 'w':
+      sendAttackDelta(ENVELOPE_TIME_STEP_MS);
+      return true;
+    case 'a':
+      sendAttackDelta(-ENVELOPE_TIME_STEP_MS);
+      return true;
+    case 'e':
+      sendDecayDelta(ENVELOPE_TIME_STEP_MS);
+      return true;
+    case 's':
+      sendDecayDelta(-ENVELOPE_TIME_STEP_MS);
+      return true;
+    case 'r':
+      sendSustainDelta(ENVELOPE_SUSTAIN_STEP);
+      return true;
+    case 'd':
+      sendSustainDelta(-ENVELOPE_SUSTAIN_STEP);
+      return true;
+    case 't':
+      sendReleaseDelta(ENVELOPE_TIME_STEP_MS);
+      return true;
+    case 'f':
+      sendReleaseDelta(-ENVELOPE_TIME_STEP_MS);
+      return true;
+    default:
+      return false;
+  }
+}
 
 }  // namespace
 
@@ -28,6 +65,10 @@ void inputTask(void*) {
       CardputerKeyEvent keyEvent = {};
       while (keyboard.readEvent(&keyEvent)) {
         if (keyEvent.key == CardputerKey::Character) {
+          if (keyEvent.fn && keyEvent.pressed && sendEnvelopeControl(keyEvent.character)) {
+            continue;
+          }
+
           const KeyNote* note = findNoteByKey(keyEvent.character);
           if (note != nullptr) sendNoteEvent(*note, keyEvent.pressed, 127);
           continue;

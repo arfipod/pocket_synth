@@ -36,6 +36,34 @@ void sendVolumeDelta(float delta) {
   sendSynthEvent(event);
 }
 
+void sendAttackDelta(float deltaMs) {
+  SynthEvent event;
+  event.type = SynthEventType::AdjustAttack;
+  event.value = deltaMs;
+  sendSynthEvent(event);
+}
+
+void sendDecayDelta(float deltaMs) {
+  SynthEvent event;
+  event.type = SynthEventType::AdjustDecay;
+  event.value = deltaMs;
+  sendSynthEvent(event);
+}
+
+void sendSustainDelta(float delta) {
+  SynthEvent event;
+  event.type = SynthEventType::AdjustSustain;
+  event.value = delta;
+  sendSynthEvent(event);
+}
+
+void sendReleaseDelta(float deltaMs) {
+  SynthEvent event;
+  event.type = SynthEventType::AdjustRelease;
+  event.value = deltaMs;
+  sendSynthEvent(event);
+}
+
 void sendControlChangeEvent(uint8_t control, uint8_t value) {
   SynthEvent event;
   event.type = SynthEventType::ControlChange;

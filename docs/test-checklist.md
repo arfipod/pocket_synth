@@ -290,6 +290,26 @@ Pass criteria:
 - failed upload does not break current firmware;
 - serial recovery remains available.
 
+Validated on 2026-06-26 with SETUP C over WiFi `pva` at `192.168.31.146`:
+
+```text
+uploaded .pio/build/cardputer_adv_wifi_dev/firmware.bin
+HTTP 200: ota ok; rebooting
+active_partition=ota_0
+ota_state=valid
+audio_init app_state=true self_test=true task_probe=true
+i2c=ESP_OK i2s=ESP_OK codec=ESP_OK
+```
+
+Remote `/dev-note` smoke test after OTA:
+
+```text
+/dev-note?action=on&wave=sine&midi=60&velocity=110 -> HTTP 200: note on
+/dev-note?action=off&midi=60 -> HTTP 200: note off
+```
+
+No direct audio capture or physical UI key test was performed in this pass.
+
 ## 6. Rollback Validation
 
 Setup: SETUP C, with SETUP E ready.
@@ -580,7 +600,8 @@ Expected:
 - if `POCKETSYNTH_INVERT_SUSTAIN_PEDAL=1` is enabled, the expected polarity is
   reversed: CC64 >= 64 disables sustain and CC64 < 64 enables sustain;
 - released notes are held only while sustain is on;
-- turning sustain off clears released notes.
+- turning sustain off starts ADSR Release for released notes;
+- notes are cleared only after Release reaches Off.
 
 Pass criteria:
 
@@ -588,9 +609,49 @@ Pass criteria:
 - the observed pedal polarity matches the build flag. The current
   `cardputer_adv_wifi_dev` M32 test build enables inverted sustain polarity;
 - no stuck notes;
-- active count returns to zero after release and sustain off.
+- active count returns to zero after release, sustain off, and ADSR Release
+  completion.
 
-## 14. Regression Checklist Before Merging
+## 14. ADSR Validation
+
+Setup: SETUP A for basic UI, SETUP B for audio confirmation.
+
+Compile the unit-test firmware without uploading:
+
+```powershell
+pio test -e cardputer_adv --without-uploading --without-testing
+```
+
+Run tests on hardware:
+
+```powershell
+pio test -e cardputer_adv
+```
+
+Manual checks:
+
+1. Boot normal firmware.
+2. Confirm the screen shows an ADSR line such as `A005 D080 S0.65 R120`.
+3. Use `Fn + W/A` and confirm Attack changes and remains clamped from 0 to 3000 ms.
+4. Use `Fn + E/S` and confirm Decay changes and remains clamped from 0 to 3000 ms.
+5. Use `Fn + R/D` and confirm Sustain changes and remains clamped from 0.0 to 1.0.
+6. Use `Fn + T/F` and confirm Release changes and remains clamped from 0 to 5000 ms.
+7. Set a long Release, play and release a note, and confirm the note fades rather
+   than stopping abruptly.
+8. Play a chord and release notes at different times; confirm voices can be in
+   different envelope stages.
+9. With sustain on, release notes and confirm they hold; turn sustain off and
+   confirm they enter Release.
+10. Confirm `Fn + 1..4` waveform changes and `Fn + Up/Down` volume still work.
+
+Pass criteria:
+
+- NoteOff does not cut notes abruptly unless Release is set to 0 ms.
+- Voices in Release count as active voices until the envelope reaches Off.
+- No audio render logs, dynamic allocation, WiFi, USB, display, or blocking work
+  were added to the render loop.
+
+## 15. Regression Checklist Before Merging
 
 Before merging any feature branch, verify:
 
@@ -606,7 +667,7 @@ Before merging any feature branch, verify:
 - setup used for manual tests documented;
 - known untested hardware items listed.
 
-## 15. Current Known Open Items
+## 16. Current Known Open Items
 
 Track these until closed:
 

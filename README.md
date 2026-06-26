@@ -7,9 +7,9 @@ volume, audio buffer rendering, and I2S/speaker output.
 
 The current firmware also includes WiFi Dev Mode, OTA update support, USB Host
 diagnostics, USB MIDI input for a Native Instruments Komplete M32, velocity,
-sustain, pitch bend, and optional M32 OLED feedback. Stable audio still leads:
-development infrastructure and external devices must remain isolated from the
-audio render path.
+sustain, pitch bend, per-note ADSR, and optional M32 OLED feedback. Stable audio
+still leads: development infrastructure and external devices must remain
+isolated from the audio render path.
 
 ## Current State
 
@@ -17,12 +17,16 @@ audio render path.
 - Refactored firmware split across focused modules in `include/` and `src/`.
 - Optional WiFi Dev Mode for `/status`, `/logs`, `/ota`, and `/dev-note`.
 - Experimental USB MIDI Host path for the Komplete M32.
+- Per-note ADSR amplitude envelope with Cardputer Fn controls and compact UI
+  readout.
 - Cardputer ADV UI test bench in `lib/firmware/cardputer_adv_ui_test`.
 - Original design references stored in `docs/references/`.
 
 ## Documentation
 
 - `docs/iteration-1.md`: full scope of the first iteration.
+- `docs/iteration-2-adsr.md`: per-note ADSR envelope, controls, lifecycle, and
+  tests.
 - `docs/architecture.md`: FreeRTOS architecture, state flow, and real-time rules.
 - `docs/ui.md`: compact UI, controls, colors, and JSON reference.
 - `docs/implementation-plan.md`: phases 1A-1G with acceptance criteria.

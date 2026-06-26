@@ -1,6 +1,7 @@
 #pragma once
 
 #include "synth_config.h"
+#include "synth_envelope.h"
 
 #include <stdint.h>
 
@@ -20,6 +21,10 @@ enum class SynthEventType : uint8_t {
   NoteOff,
   SetWaveform,
   AdjustVolume,
+  AdjustAttack,
+  AdjustDecay,
+  AdjustSustain,
+  AdjustRelease,
   ControlChange,
   PitchBend,
 };
@@ -33,7 +38,8 @@ struct ActiveNote {
   float frequency = 0.0f;
   float phase = 0.0f;
   float phaseIncrement = 0.0f;
-  uint16_t attackSamples = 0;
+  EnvelopeState envelope = {};
+  uint32_t ageSamples = 0;
   bool keyReleased = false;
 };
 
@@ -45,6 +51,7 @@ struct SynthAudioState {
   bool sustainPedal = false;
   int16_t pitchBendRaw = 0;
   float pitchBendMultiplier = 1.0f;
+  EnvelopeParams ampEnvelope = DEFAULT_AMP_ENVELOPE;
   uint8_t cc[128] = {};
   ActiveNote notes[MAX_POLYPHONY] = {};
 };
@@ -55,6 +62,10 @@ struct UiState {
   float masterVolume = INITIAL_MASTER_VOLUME;
   uint8_t activeCount = 0;
   uint32_t pressedMask = 0;
+  float attackMs = DEFAULT_AMP_ENVELOPE.attackMs;
+  float decayMs = DEFAULT_AMP_ENVELOPE.decayMs;
+  float sustainLevel = DEFAULT_AMP_ENVELOPE.sustainLevel;
+  float releaseMs = DEFAULT_AMP_ENVELOPE.releaseMs;
   char chord[16] = "--";
 };
 

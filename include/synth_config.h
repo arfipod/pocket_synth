@@ -19,7 +19,6 @@ inline constexpr float PER_NOTE_GAIN = 0.45f;
 inline constexpr float INITIAL_MASTER_VOLUME = 0.70f;
 inline constexpr float VOLUME_STEP = 0.05f;
 inline constexpr float PULSE_WIDTH = 0.25f;
-inline constexpr uint16_t NOTE_ATTACK_SAMPLES = 48;
 // Perceptual trims keep the sine as the reference and leave chord headroom.
 inline constexpr float WAVEFORM_GAIN_SINE = 1.00f;
 inline constexpr float WAVEFORM_GAIN_SQUARE = 0.60f;

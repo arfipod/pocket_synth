@@ -19,7 +19,7 @@ void audioTask(void*) {
     SynthAudioState localState;
     copyAudioState(&localState);
     renderAudioBuffer(&localState, audioBuffer, AUDIO_BUFFER_FRAMES);
-    storeRenderedPhases(localState);
+    storeRenderedAudioState(localState);
     writeAudioFrames(audioBuffer, AUDIO_BUFFER_FRAMES);
   }
 }

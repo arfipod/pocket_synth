@@ -49,6 +49,7 @@ Main elements:
 - `text-polyphony`: `0/8`.
 - `text-chord-label`: `CHORD`.
 - `text-current-chord`: `--`.
+- Compact ADSR readout, for example `A005 D080 S0.65 R120`.
 - `progress-battery`: battery.
 - `progress-main-volume`: vertical volume.
 - `sparkline-wave-preview`: selected waveform preview.
@@ -120,6 +121,24 @@ Pressed key feedback:
 | --- | --- | --- |
 | White | `#d8ecff` | `#7cc7ff` |
 | Black | `#25415f` | `#7cc7ff` |
+
+## ADSR Controls
+
+The main firmware uses Fn combinations for amplitude envelope editing:
+
+| Combination | Action |
+| --- | --- |
+| `Fn + W` | Increase Attack |
+| `Fn + A` | Decrease Attack |
+| `Fn + E` | Increase Decay |
+| `Fn + S` | Decrease Decay |
+| `Fn + R` | Increase Sustain |
+| `Fn + D` | Decrease Sustain |
+| `Fn + T` | Increase Release |
+| `Fn + F` | Decrease Release |
+
+The compact readout should remain visible with the app name, waveform selectors,
+active voice count, chord, piano, and volume.
 
 ## Base Colors
 
